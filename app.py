@@ -89,6 +89,11 @@ def frame_from_rows(rows: list[list[str]], tab: str) -> pd.DataFrame:
     if best_score < 4:
         raise ValueError(f"{tab}: Prospect ID, Transaction Date, Preference 1, Lead Stage headers needed")
     headers = [aliases.get(key_name(h), f"ignored_{i}") for i,h in enumerate(rows[best_idx])]
+    if "state" not in headers:
+        raise ValueError(
+            f"{tab}: 'CORRESPONDENCE STATE' column was not found in the "
+            "Google Sheets header row; check the exact column heading."
+        )
     records=[]
     for r in rows[best_idx+1:]:
         if not any(str(x).strip() for x in r):
@@ -102,7 +107,7 @@ def frame_from_rows(rows: list[list[str]], tab: str) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=55, show_spinner=False)
-def load_three_sheets(sheet_id: str, credentials_json: str) -> dict[str, pd.DataFrame]:
+def load_three_sheets(sheet_id: str, credentials_json: str, schema_version: int = 2) -> dict[str, pd.DataFrame]:
     """Read three sheets in a single Sheets API batch request; cache for 55 sec.
 
     This removes the three separate worksheet API calls on each refresh.
@@ -211,6 +216,14 @@ def compute_states(frame: pd.DataFrame, year: int, today: date, overall: bool = 
     # Match Total Forms: only the four reported campuses belong to the report.
     df["campus"] = df["campus"].astype(str).str.strip().str.upper()
     df = df[df["campus"].isin({campus.upper() for campus in CAMPUSES})]
+    # Guard against pre-update cached dataframes without the newly added state column.
+    # The schema_version=2 cache key above causes a fresh read after deployment.
+    if "state" not in df.columns:
+        raise ValueError(
+            "State column is missing from cached Google Sheets data. "
+            "Clear the Streamlit app cache and refresh; verify the "
+            "CORRESPONDENCE STATE column exists in the source sheet."
+        )
     counts = df["state"].map(normalized_state)
     return {str(k): int(v) for k, v in counts[counts.ne("")].value_counts().items()}
 
@@ -348,31 +361,31 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 @keyframes brandLineShine {{from {{transform:translateX(-110%);}}to {{transform:translateX(110%);}}}}
 @media(prefers-reduced-motion:reduce) {{.orange-divider,.orange-divider::after {{animation:none!important;}}}}
 .form-card {{margin:1.25% 3.4% 0;border:1.4px solid #74338a;border-radius:20px;overflow:hidden;box-shadow:0 5px 17px #49165c14;}}
-.section-title {{position:relative;background:linear-gradient(90deg,#501067,#49115a);color:white;font-size:clamp(22px,2.4vw,49px);font-weight:800;height:clamp(48px,3.55vw,76px);display:flex;align-items:center;justify-content:center;padding:0 3.3%;text-align:center;}}
-.section-title:after {{content:"";position:absolute;right:0;top:0;width:7%;height:100%;background:#f38d04;border-radius:0 0 0 100%;border-left:4px solid white;}}
+.section-title {{position:relative;background:linear-gradient(90deg,#501067,#49115a);color:white;font-size:clamp(20px,1.55vw,26px);font-weight:800;height:clamp(48px,3.55vw,76px);display:flex;align-items:center;justify-content:center;padding:0 3.3%;text-align:center;}}
+.section-title:after {{content:"";position:absolute;right:12px;top:0;width:42px;height:3px;background:#e99a2a;border:0;border-radius:0;}}
 .title-text {{display:block;width:100%;text-align:center;padding:0 7%;box-sizing:border-box;}}
 .title-bar {{font-weight:350;opacity:.93}}
 .form-table-scroll {{overflow-x:auto;}}
-.form-table {{width:100%;border-collapse:collapse;table-layout:fixed;font-variant-numeric:tabular-nums;font-size:clamp(16px,1.65vw,34px);}}
+.form-table {{width:100%;border-collapse:collapse;table-layout:fixed;font-variant-numeric:tabular-nums;font-family:Arial,Helvetica,sans-serif;font-size:clamp(14px,1.02vw,17px);}}
 .form-table th,.form-table td {{border:1px solid #c7c1c8;text-align:center;padding:clamp(7px,.5vw,12px) 8px;line-height:1.22;}}
 .form-table th {{background:#ffe0c2;color:#451159;font-weight:800;}}
 .form-table th:first-child {{background:#e9d6f9;width:22%;}}
 .form-table td:first-child {{text-align:left;padding-left:5.4%;}}
 .form-table tr.total-row td {{background:#ffe3c6;color:#411159;font-weight:850;}}
 .brand-footer {{margin-top:1.2%;height:clamp(35px,4vw,95px);background-image:url('data:image/jpeg;base64,{FOOTER_IMAGE}');background-size:100% 100%;}}
-@media(max-width:850px) {{.brand-header {{height:82px}}.branding-image {{margin-right:175px;background-size:100% 100%}}.date-pill {{width:175px;height:52%;top:27%;padding:0 4px 0 18px}}.date-orange-accent {{left:-13px;width:31px}}.date-content {{gap:6px}}.date-calendar {{font-size:19px}}.date-top {{font-size:11px}}.date-bottom {{font-size:10px}}.form-card {{margin:12px 10px 0}}.form-table {{min-width:560px;font-size:17px}} .section-title {{gap:0}}}}
+@media(max-width:850px) {{.brand-header {{height:82px}}.branding-image {{margin-right:175px;background-size:100% 100%}}.date-pill {{width:175px;height:52%;top:27%;padding:0 4px 0 18px}}.date-orange-accent {{left:-13px;width:31px}}.date-content {{gap:6px}}.date-calendar {{font-size:19px}}.date-top {{font-size:11px}}.date-bottom {{font-size:10px}}.form-card {{margin:12px 10px 0}}.form-table {{min-width:560px;font-size:14px}} .section-title {{gap:0}}}}
 
 /* ADDITIVE STYLING: original header, Total Forms and footer remain unchanged. */
 .state-insights-grid {{display:grid;grid-template-columns:minmax(0,2.45fr) minmax(295px,1fr);gap:1.15%;margin:1.15% 3.4% 0;align-items:stretch;}}
 .states-card,.insights-card {{border:1.3px solid #7a398b;border-radius:16px;overflow:hidden;box-shadow:0 5px 15px #49165c12;background:#fff;min-width:0;}}
-.states-heading,.insights-heading {{position:relative;background:linear-gradient(100deg,#4c0d60,#5d176e);color:white;font-size:clamp(18px,1.55vw,28px);font-weight:800;min-height:45px;display:flex;align-items:center;padding:7px 19px;box-sizing:border-box;}}
-.states-heading:after,.insights-heading:after {{content:"";position:absolute;right:0;top:0;width:8%;height:100%;background:#ff9100;border-radius:0 0 0 100%;}}
+.states-heading,.insights-heading {{position:relative;background:linear-gradient(100deg,#4c0d60,#5d176e);color:white;font-size:clamp(18px,1.32vw,23px);font-weight:800;min-height:45px;display:flex;align-items:center;padding:7px 19px;box-sizing:border-box;}}
+.states-heading:after,.insights-heading:after {{content:"";position:absolute;right:12px;top:0;width:42px;height:3px;background:#e99a2a;border-radius:0;}}
 .states-heading-icon {{color:#ff9500;font-size:1.2em;margin-right:12px;}}
 .states-scroll {{overflow-x:auto;}}
-.states-table {{width:100%;border-collapse:collapse;table-layout:fixed;font-size:clamp(12px,1.01vw,19px);font-variant-numeric:tabular-nums;}}
+.states-table {{width:100%;border-collapse:collapse;table-layout:fixed;font-family:Arial,Helvetica,sans-serif;font-size:clamp(14px,1.02vw,17px);font-variant-numeric:tabular-nums;}}
 .states-table th,.states-table td {{border:1px solid #d6ccdb;text-align:center;padding:clamp(5px,.40vw,9px) 5px;line-height:1.15;}}
 .states-table thead th {{color:#451159;font-weight:800;}}
-.states-table .group-head th {{background:#ffe7ce;font-size:1.01em;}}
+.states-table .group-head th {{background:#ffe7ce;font-size:1em;}}
 .states-table .group-head th:nth-child(-n+2) {{background:#e7d7f8;}}
 .states-table .year-head th {{background:#fff0de;}}
 .states-table th:nth-child(1),.states-table td:nth-child(1) {{width:8%;}}
@@ -387,8 +400,8 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 .insight-item {{display:flex;gap:15px;padding:clamp(12px,1.1vw,22px) 0;border-bottom:1px solid #eadfee;align-items:flex-start;}}
 .insight-item:last-child {{border-bottom:0;}}
 .insight-icon {{font-size:clamp(20px,1.75vw,30px);flex:none;display:inline-flex;align-items:center;justify-content:center;width:clamp(39px,3.5vw,62px);height:clamp(39px,3.5vw,62px);border-radius:50%;background:#f5edfb;color:#5b176d;}}
-.insight-item strong {{font-size:clamp(13px,1vw,19px);color:#431052;display:block;margin-bottom:5px;}}
-.insight-item p {{font-size:clamp(12px,.94vw,18px);margin:0;line-height:1.35;color:#29232c;}}
+.insight-item strong {{font-size:clamp(14px,1.02vw,17px);font-family:Arial,Helvetica,sans-serif;color:#431052;display:block;margin-bottom:5px;}}
+.insight-item p {{font-size:clamp(14px,1.02vw,17px);font-family:Arial,Helvetica,sans-serif;margin:0;line-height:1.35;color:#29232c;}}
 .insight-item b {{color:#501264;}}
 @media(max-width:980px) {{.state-insights-grid {{grid-template-columns:1fr;gap:15px;}}.states-table {{min-width:650px;}}}}
 </style>""",unsafe_allow_html=True)
@@ -414,7 +427,7 @@ if fragment is not None:
         today = datetime.now(IST).date()
         try:
             info = service_account_info()
-            sheets = load_three_sheets(SHEET_ID,json.dumps(info,sort_keys=True))
+            sheets = load_three_sheets(SHEET_ID,json.dumps(info,sort_keys=True),2)
             results={tab:compute_forms(sheets[tab],year,today) for tab,year in TABS.items()}
             state_counts = {
                 tab: {"asof": compute_states(sheets[tab], year, today),
@@ -429,7 +442,7 @@ if fragment is not None:
 else:
     today = datetime.now(IST).date()
     try:
-        sheets = load_three_sheets(SHEET_ID,json.dumps(service_account_info(),sort_keys=True))
+        sheets = load_three_sheets(SHEET_ID,json.dumps(service_account_info(),sort_keys=True),2)
         results={tab:compute_forms(sheets[tab],year,today) for tab,year in TABS.items()}
         state_counts = {
             tab: {"asof": compute_states(sheets[tab], year, today),
