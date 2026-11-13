@@ -11,131 +11,131 @@ _AACSB_LOGO = "iVBORw0KGgoAAAANSUhEUgAAAJQAAABHCAYAAADhlm5VAAAdnElEQVR42u1daVgUV
 
 
 def _hide_streamlit_chrome() -> None:
-    # Only permanent style is Chrome suppression; login visuals are rendered
-    # inside an ephemeral container and disappear on successful authentication.
+    # Only the login screen is styled; dashboard.py/app.py are not changed.
     st.markdown("""<style>
-        #MainMenu, header, footer, [data-testid="stSidebar"],
-        [data-testid="collapsedControl"], [data-testid="stToolbar"],
-        [data-testid="stDecoration"], .stDeployButton {display:none !important;}
-        [data-testid="stAppViewContainer"] > header {display:none !important;}
+      #MainMenu, [data-testid="stSidebar"], [data-testid="stToolbar"],
+      [data-testid="collapsedControl"], [data-testid="stDecoration"],
+      .stDeployButton, [data-testid="stHeader"] {display:none !important;}
     </style>""", unsafe_allow_html=True)
 
 
 def _render_form_css() -> None:
-    styles = r"""
+    # Full-viewport artwork + CSS moving highlights. Actual inputs are Streamlit widgets.
+    css = r"""
     <style>
-    /* Artwork is based on the exact selected dark plum / gold visual. */
-    .stApp {
-        background: #100817 url('data:image/gif;base64,__BACKDROP__') center center / cover no-repeat fixed !important;
-        color: #ffffff !important;
-    }
+    html, body, #root, [data-testid="stApp"], .stApp,
     [data-testid="stAppViewContainer"], [data-testid="stMain"], section.main {
-        background: transparent !important;
+        background-color:#130719 !important;
     }
-    .stApp::before {
-        content: ""; position: fixed; inset: 0; pointer-events: none; z-index:0;
-        background: radial-gradient(ellipse 30% 22% at 75% 76%, rgba(161,52,203,.11),transparent 72%);
-        animation: jkLuxuryGlow 12s ease-in-out infinite alternate;
+    [data-testid="stAppViewContainer"], .stApp {
+        background-image:url("data:image/gif;base64,__BACKDROP__") !important;
+        background-position:center center !important;
+        background-repeat:no-repeat !important;
+        background-size:cover !important;
+        background-attachment:fixed !important;
     }
-    @keyframes jkLuxuryGlow {
-        from {opacity:.25;transform:translate3d(-2%,0,0)}
-        to {opacity:.85;transform:translate3d(2%,0,0)}
+    [data-testid="stMain"], section.main {background:transparent !important;}
+    /* Soft glow and waves move; the login card does not. */
+    [data-testid="stAppViewContainer"]::before {
+        content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+        background:radial-gradient(ellipse 35% 24% at 82% 80%,rgba(157,38,174,.17),transparent 72%);
+        animation:jkShimmer 11s ease-in-out infinite alternate;
     }
-    @media(prefers-reduced-motion:reduce) {
-        .stApp::before {animation:none !important;}
+    @keyframes jkShimmer {0%{opacity:.16;transform:translateX(-2%)}100%{opacity:.64;transform:translateX(2%)}}
+    [data-testid="stMainBlockContainer"], .block-container {
+        padding:clamp(18px,3vh,34px) 24px 25px !important;
+        max-width:1100px !important;
+        position:relative !important;
+        z-index:1 !important;
     }
-    .block-container {
-        padding: clamp(16px, 3vh, 28px) 18px 16px !important;
-        max-width: 1020px !important;
+    /* One top row: Jaipuria on left and AACSB on right. */
+    .jk-exec-logos {
+        display:flex;align-items:center;justify-content:space-between;
+        width:100%;max-width:1040px;margin:0 auto clamp(19px,3vh,30px);
+        gap:22px;
     }
-    /* Branding above the functional Streamlit form. */
-    .jk-logo-row {
-        max-width: 950px; margin: 0 auto;
-        display:flex; align-items:center; justify-content:space-between;
-        gap: 20px; min-height: 102px;
+    .jk-exec-logos .jk-main-logo {width:clamp(210px,25vw,315px);max-height:106px;object-fit:contain;object-position:left;}
+    .jk-exec-logos .jk-accreditation {width:clamp(115px,16vw,185px);max-height:85px;object-fit:contain;object-position:right;}
+    .jk-exec-title {text-align:center;margin:0 auto 8px;max-width:750px;}
+    .jk-exec-title h1 {font-family:Arial,Helvetica,sans-serif !important;
+        font-size:clamp(31px,3vw,42px) !important;font-weight:800 !important;
+        color:#fff !important;line-height:1.13 !important;margin:0 !important;
+        letter-spacing:-.6px;text-shadow:0 3px 14px #09020caa;}
+    .jk-exec-title h1 span {color:#f5bd56 !important;}
+    .jk-exec-title .jk-title-glow {
+        height:3px;width:150px;border-radius:4px;margin:14px auto 24px;
+        background:linear-gradient(90deg,transparent,#f5c769,transparent);
+        box-shadow:0 0 14px #f4b94c95;
     }
-    .jk-logo-row .jk-jaipuria {width: min(310px, 46%); height:auto; object-fit:contain; object-position:left center;}
-    .jk-logo-row .jk-aacsb {width:min(172px, 27%);height:auto;object-fit:contain;object-position:right center;}
-    .jk-brand-title {text-align:center;margin:0 auto 0;max-width:700px;}
-    .jk-brand-title h1 {color:#fff!important;font-family:Arial,Helvetica,sans-serif!important;
-        font-size:clamp(26px,3vw,39px)!important;font-weight:800!important;line-height:1.13!important;
-        letter-spacing:-.65px;margin:0!important;text-shadow:0 2px 10px rgba(0,0,0,.35)}
-    .jk-brand-title h1 em {color:#f1b94d!important;font-style:normal!important;}
-    .jk-brand-title .jk-gold-underline {width:120px;height:3px;margin:12px auto 17px;
-        background:linear-gradient(90deg,transparent,#f2bf57,transparent);border-radius:5px;box-shadow:0 0 12px #ecad3c80}
-    /* Compact executive glass-form card; all inputs remain real Streamlit widgets. */
-    div[data-testid="stForm"] {
-        max-width:430px!important;margin:0 auto!important;
-        border:1px solid rgba(176,89,206,.64)!important;
-        border-radius:17px!important;padding:17px 20px 18px!important;
-        background:linear-gradient(150deg,rgba(59,20,68,.92),rgba(35,14,48,.94))!important;
-        box-shadow:0 17px 44px rgba(0,0,0,.44),inset 0 1px rgba(255,255,255,.12)!important;
-        backdrop-filter:blur(9px);
+    /* Form card styled via streamlit testids rather than imaginary HTML wrappers */
+    [data-testid="stForm"],div[data-testid="stForm"] {
+        border:1px solid rgba(194,98,218,.85) !important;
+        background:linear-gradient(160deg,rgba(51,17,63,.95),rgba(28,10,38,.96)) !important;
+        box-shadow:0 18px 46px #06020bad,0 0 0 1px #e2a6ec1c inset !important;
+        border-radius:19px !important;padding:18px 18px 20px !important;
+        max-width:460px !important;margin:0 auto !important;
     }
-    div[data-testid="stForm"] label[data-testid="stWidgetLabel"] p {
-        font-family:Arial,Helvetica,sans-serif!important;
-        color:#f9f4ff!important;font-size:14px!important;font-weight:650!important;
+    [data-testid="stForm"] label p,
+    [data-testid="stForm"] [data-testid="stWidgetLabel"] p {
+        color:#fff !important;font-size:14px !important;font-weight:650 !important;
+        font-family:Arial,Helvetica,sans-serif !important;
     }
-    div[data-testid="stForm"] div[data-testid="stTextInputRootElement"] > div {
-        border:1px solid rgba(197,130,224,.34)!important;
-        background:#2b1337!important;border-radius:9px!important;
+    [data-testid="stForm"] [data-testid="stTextInputRootElement"] {
+        background:#2c1538 !important;border:1px solid #78458b !important;
+        border-radius:10px !important;min-height:45px !important;
     }
-    div[data-testid="stForm"] div[data-testid="stTextInputRootElement"] input {
-        color:#fff!important;caret-color:#f5c05a!important;
-        background:transparent!important;font-size:15px!important;
+    [data-testid="stForm"] [data-testid="stTextInputRootElement"] input {
+        color:#fff !important;background:transparent !important;
+        caret-color:#ffcc6e !important;font-size:15px !important;
     }
-    div[data-testid="stForm"] div[data-testid="stTextInputRootElement"] input::placeholder {color:#e4d2eb!important;opacity:.9!important;}
-    div[data-testid="stForm"] div[data-testid="stTextInputRootElement"] svg {color:#ede3f1!important;}
-    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button {
-        color:#26120d!important;
-        background:linear-gradient(180deg,#ffe2a0 0%,#f3bb52 36%,#c58424 100%)!important;
-        box-shadow:0 7px 15px rgba(0,0,0,.29),inset 0 1px rgba(255,255,255,.68)!important;
-        border:1px solid #f3bb52!important;border-radius:10px!important;
-        width:100%!important;font-size:16px!important;font-weight:800!important;
-        padding:10px 15px!important;
-        transition:filter .18s ease,transform .18s ease!important;
+    [data-testid="stForm"] [data-testid="stTextInputRootElement"] input::placeholder {color:#e7d8eb !important;opacity:.9;}
+    [data-testid="stForm"] [data-testid="stTextInputRootElement"] svg {color:#fff !important;fill:none;}
+    [data-testid="stForm"] [data-testid="stFormSubmitButton"] button {
+        width:100% !important;min-height:48px !important;border:1px solid #eabb66 !important;
+        border-radius:11px !important;color:#291606 !important;
+        background:linear-gradient(180deg,#ffe3a2 0%,#eeb54f 52%,#bc7a19 100%) !important;
+        box-shadow:0 8px 16px #0007,inset 0 1px #fff9 !important;
+        font-weight:800 !important;font-size:16px !important;
     }
-    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button:hover {
-        filter:brightness(1.08)!important;transform:translateY(-1px)!important;
+    [data-testid="stForm"] [data-testid="stFormSubmitButton"] button:hover {filter:brightness(1.07) !important;}
+    [data-testid="stForm"] [data-testid="stFormSubmitButton"] button:focus-visible {outline:3px solid white !important;outline-offset:2px;}
+    .jk-login-note {text-align:center;margin:12px auto;color:#eedbf4;font:12px Arial,Helvetica,sans-serif;text-shadow:0 1px 5px #0009;}
+    [data-testid="stAlert"]{max-width:460px;margin:10px auto 0 !important;border-radius:10px !important;}
+    @media(max-width:700px){
+        .jk-exec-logos {gap:10px;margin-bottom:26px;}
+        .jk-exec-logos .jk-main-logo{width:58%;}
+        .jk-exec-logos .jk-accreditation{width:34%;}
+        .jk-exec-title h1{font-size:28px !important;}
+        [data-testid="stMainBlockContainer"], .block-container{padding:18px 12px 18px !important;}
+        [data-testid="stForm"]{padding:14px !important;}
     }
-    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button:focus-visible {
-        outline:3px solid #fff!important;outline-offset:2px;
+    @media(prefers-reduced-motion:reduce){
+       [data-testid="stAppViewContainer"]::before{animation:none !important;}
     }
-    .jk-login-note {text-align:center;color:#e0c9e6;font-family:Arial,sans-serif;
-        font-size:11px;margin-top:15px;text-shadow:0 1px 5px #0007;}
-    .stAlert {max-width:430px;margin:10px auto 0!important;border-radius:11px!important;}
-    /* Small screens: all elements remain in viewport and don't overlap. */
-    @media(max-width:680px){
-        .jk-logo-row {min-height:85px;gap:8px;}
-        .jk-logo-row .jk-jaipuria{width:55%;}
-        .jk-logo-row .jk-aacsb{width:34%;}
-        .jk-brand-title h1{font-size:27px!important;}
-        div[data-testid="stForm"]{padding:14px!important;}
-        .block-container{padding-top:16px!important;}
-    }
-    </style>
-    """.replace("__BACKDROP__", _LOGIN_BG)
-    st.markdown(styles, unsafe_allow_html=True)
+    </style>""".replace("__BACKDROP__", _LOGIN_BG)
+    st.markdown(css,unsafe_allow_html=True)
 
 
 def _render_login_branding() -> None:
-    markup = """
-        <div class="jk-logo-row">
-          <img class="jk-jaipuria" src="data:image/png;base64,__LOGO__" alt="Jaipuria Institute of Management" />
-          <img class="jk-aacsb" src="data:image/png;base64,__AACSB__" alt="AACSB Accredited" />
-        </div>
-        <div class="jk-brand-title"><h1>Executive Daily<br/><em>Admissions Dashboard</em></h1>
-          <div class="jk-gold-underline"></div></div>
+    html = """
+    <div class="jk-exec-logos">
+      <img class="jk-main-logo" src="data:image/png;base64,__LOGO__" alt="Jaipuria Institute of Management" />
+      <img class="jk-accreditation" src="data:image/png;base64,__AACSB__" alt="AACSB Accredited" />
+    </div>
+    <div class="jk-exec-title">
+      <h1>Executive Daily<br/><span>Admissions Dashboard</span></h1>
+      <div class="jk-title-glow"></div>
+    </div>
     """.replace("__LOGO__", _JAIPURIA_LOGO).replace("__AACSB__", _AACSB_LOGO)
-    st.markdown(markup,unsafe_allow_html=True)
+    st.markdown(html,unsafe_allow_html=True)
 
 
 def _render_login_form() -> tuple[bool, str, str, object]:
-    _, center, _ = st.columns([1,1.07,1],gap="small")
+    _, center, _ = st.columns([1,1.2,1],gap="small")
     with center:
         with st.form("jaipuria_login_form",clear_on_submit=False):
-            username = st.text_input("Username",key="login_username",placeholder="Enter username")
-            password = st.text_input("Password",key="login_password",type="password",placeholder="Enter password")
+            username = st.text_input("Username",key="login_username",placeholder="Enter Username")
+            password = st.text_input("Password",key="login_password",type="password",placeholder="Enter Password")
             submitted = st.form_submit_button("Log in  →",use_container_width=True)
         feedback = st.empty()
     return submitted,username,password,feedback
