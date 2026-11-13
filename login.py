@@ -42,6 +42,8 @@ def _render_login_branding() -> None:
                 align-items:center;
                 margin-top: 0.05rem;
                 margin-bottom: 0.05rem;
+                position: relative;
+                left: -38px;
             }
             .jk-logo-wrap img {
                 width: 350px;
@@ -49,7 +51,6 @@ def _render_login_branding() -> None:
                 height: auto;
                 display:block;
                 margin:0 auto;
-                transform: translateX(-16px);
             }
             .jk-title {
                 margin: 0.05rem 0 0.05rem 0;
@@ -81,7 +82,8 @@ def _render_login_branding() -> None:
             }
             @media (max-width: 768px) {
                 .jk-title {font-size: 2.15rem;}
-                .jk-logo-wrap img {width: 290px; transform: translateX(-8px);}
+                .jk-logo-wrap {left: -18px;}
+                .jk-logo-wrap img {width: 290px;}
                 .jk-card {padding: 0.85rem 0.85rem 0.9rem 0.85rem;}
             }
         </style>
@@ -119,23 +121,46 @@ def _render_form_css() -> None:
     st.markdown(
         """
         <style>
-            /* Login-only, understated multicolour ambient background. */
+            /* Login page only. Visible yet soft moving lavender/blue/peach/mint pools.
+               Streamlit's view container also needs transparent background,
+               otherwise it hides the animated layer underneath. */
             .stApp {
-                background: linear-gradient(
-                    125deg,
-                    #faf7fd 0%, #f5f0fa 22%, #f3f8ff 46%,
-                    #fff8f0 70%, #f7f1fb 100%
-                ) !important;
-                background-size: 280% 280% !important;
-                animation: jkAmbientBackground 22s ease-in-out infinite !important;
+                background: #f8f5fc !important;
+                position: relative;
+                isolation: isolate;
             }
-            @keyframes jkAmbientBackground {
-                0%   { background-position: 0% 45%; }
-                50%  { background-position: 100% 55%; }
-                100% { background-position: 0% 45%; }
+            .stApp::before {
+                content: "";
+                position: fixed;
+                inset: -20%;
+                pointer-events: none;
+                z-index: 0;
+                opacity: 0.94;
+                background:
+                    radial-gradient(ellipse 32% 38% at 16% 22%, rgba(167,122,234,.42) 0%, transparent 75%),
+                    radial-gradient(ellipse 30% 39% at 82% 21%, rgba(119,195,246,.43) 0%, transparent 76%),
+                    radial-gradient(ellipse 34% 38% at 75% 88%, rgba(255,188,138,.40) 0%, transparent 75%),
+                    radial-gradient(ellipse 31% 37% at 20% 80%, rgba(129,214,184,.35) 0%, transparent 76%);
+                filter: blur(22px);
+                animation: jkColourDrift 14s ease-in-out infinite alternate;
+                will-change: transform;
+            }
+            [data-testid="stAppViewContainer"],
+            [data-testid="stMain"],
+            section.main {
+                background: transparent !important;
+            }
+            [data-testid="stAppViewContainer"] {
+                position: relative;
+                z-index: 1;
+            }
+            @keyframes jkColourDrift {
+                0%   { transform: translate3d(-4%, -3%, 0) rotate(-4deg) scale(1); }
+                50%  { transform: translate3d(3%, 4%, 0) rotate(3deg) scale(1.06); }
+                100% { transform: translate3d(-1%, 5%, 0) rotate(-2deg) scale(1.02); }
             }
             @media (prefers-reduced-motion: reduce) {
-                .stApp { animation: none !important; background-position: center !important; }
+                .stApp::before { animation: none !important; transform: none !important; }
             }
             div[data-testid="stForm"] {
                 background: #ffffff !important;
