@@ -12,9 +12,23 @@ _BOTTOM_WAVE = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwMDAgQDAwMEBAQFBgoGBgUFBgwI
 def _hide_streamlit_chrome() -> None:
     # Only unauthenticated sessions call this function.
     st.markdown("""<style>
-      #MainMenu, [data-testid="stSidebar"], [data-testid="stToolbar"],
-      [data-testid="collapsedControl"], [data-testid="stDecoration"],
-      .stDeployButton, [data-testid="stHeader"] {display:none !important;}
+      /* Streamlit built-in application chrome (not dashboard content). */
+      #MainMenu,
+      footer,
+      [data-testid="stSidebar"],
+      [data-testid="stToolbar"],
+      [data-testid="stAppDeployButton"],
+      [data-testid="stViewerBadge"],
+      [data-testid="collapsedControl"],
+      [data-testid="stDecoration"],
+      [data-testid="stHeader"],
+      .stDeployButton,
+      [class*="viewerBadge_container"],
+      [class*="viewerBadge_link"],
+      [class*="ViewerBadge"] {
+          display: none !important;
+          visibility: hidden !important;
+      }
     </style>""", unsafe_allow_html=True)
 
 
