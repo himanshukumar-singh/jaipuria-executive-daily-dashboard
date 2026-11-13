@@ -56,7 +56,7 @@ def _render_form_css() -> None:
         align-items: center;
         justify-content: flex-start;
         gap: clamp(14px,1.6vw,26px);
-        margin: 0 0 clamp(34px,5vh,52px) 0;
+        margin: 0 0 clamp(10px,1.8vh,20px) 0;
         padding: 0;
         width: max-content;
         max-width: 100%;
@@ -115,7 +115,7 @@ def _render_form_css() -> None:
     }
     [data-testid="stForm"] label p,
     [data-testid="stForm"] [data-testid="stWidgetLabel"] p {
-        color:#fff !important;font:700 15px Arial,Helvetica,sans-serif !important;
+        color:#fff !important;font-family:Arial,Helvetica,sans-serif !important;font-size:16px !important;font-weight:800 !important;letter-spacing:.15px !important;
     }
     [data-testid="stForm"] [data-testid="stTextInputRootElement"] {
         background:rgba(45,20,57,.94) !important;
@@ -161,7 +161,7 @@ def _render_form_css() -> None:
         [data-testid="stMainBlockContainer"],.block-container {
             padding:20px 12px 28px !important;
         }
-        .jk-exec-logos {margin:0 auto 36px;justify-content:center;min-height:65px;}
+        .jk-exec-logos {margin:0 auto 16px;justify-content:center;min-height:65px;}
         .jk-exec-logos .jk-main-logo {width:clamp(160px,38vw,260px);}
         .jk-exec-logos .jk-accreditation {width:clamp(85px,22vw,142px);}
         .jk-exec-logos .jk-logo-separator {height:48px;}
