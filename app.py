@@ -344,6 +344,7 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 [data-testid="stVerticalBlock"] {{gap:0!important}}
 .executive {{width:100%;background:white;color:#16111b;font-family:Arial,Helvetica,sans-serif;}}
 .brand-header {{height:clamp(96px,7.8vw,148px);display:flex;width:100%;align-items:stretch;overflow:hidden;position:relative;}}
+.brand-header::after {{content:"";position:absolute;bottom:0;left:1.7%;right:1.7%;height:3px;background:#f39200;border-radius:3px;pointer-events:none;z-index:8;}}
 .branding-image {{flex:1;min-width:0;margin-right:clamp(200px,13.6vw,270px);background-image:url('data:image/jpeg;base64,{HEADER_IMAGE}');background-size:100% 100%;background-position:center top;background-repeat:no-repeat;}}
 /* Keep the date badge in its own right-hand space: it must never cover a campus photo. */
 .date-pill {{position:absolute;right:0;top:29%;height:52%;width:clamp(200px,13.6vw,270px);box-sizing:border-box;isolation:isolate;color:#fff;display:flex;align-items:center;justify-content:center;padding:0 9px 0 24px;white-space:nowrap;font-weight:750;background:#4b105f;border-radius:38px 0 0 0;box-shadow:0 2px 10px #31104316;}}
@@ -354,13 +355,8 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 .date-calendar svg {{display:block;width:100%;height:100%;}}
 .date-top {{font-size:clamp(12px,1.03vw,20px);line-height:1.15;}}
 .date-bottom {{font-size:clamp(11px,.9vw,17px);margin-top:5px;line-height:1.15;}}
-/* A single, animated brand-colored separator, traveling left to right. */
-.orange-divider {{position:relative;height:4px;margin:0 3.4%;border-radius:999px;overflow:hidden;background:linear-gradient(90deg,#4b1769,#e47c11,#efbf4c,#883ead,#4b1769);background-size:230% 100%;animation:brandLineTravel 5s linear infinite;}}
-.orange-divider::after {{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,#ffffff73 46%,#ffffffc9 50%,#ffffff73 54%,transparent 100%);transform:translateX(-110%);animation:brandLineShine 4s linear infinite;}}
-@keyframes brandLineTravel {{from {{background-position:100% 50%;}}to {{background-position:0% 50%;}}}}
-@keyframes brandLineShine {{from {{transform:translateX(-110%);}}to {{transform:translateX(110%);}}}}
-@media(prefers-reduced-motion:reduce) {{.orange-divider,.orange-divider::after {{animation:none!important;}}}}
-.form-card {{margin:1.25% 3.4% 0;border:1.4px solid #74338a;border-radius:20px;overflow:hidden;box-shadow:0 5px 17px #49165c14;}}
+/* The extra animated separator has been removed; the orange line touches the header image. */
+.form-card {{margin:clamp(26px,2.8vw,54px) 3.4% 0;border:1.4px solid #74338a;border-radius:20px;overflow:hidden;box-shadow:0 5px 17px #49165c14;}}
 .section-title {{position:relative;background:linear-gradient(90deg,#501067,#49115a);color:white;font-size:clamp(20px,1.55vw,26px);font-weight:800;height:clamp(48px,3.55vw,76px);display:flex;align-items:center;justify-content:center;padding:0 3.3%;text-align:center;}}
 .section-title:after {{content:"";position:absolute;right:12px;top:0;width:42px;height:3px;background:#e99a2a;border:0;border-radius:0;}}
 .title-text {{display:block;width:100%;text-align:center;padding:0 7%;box-sizing:border-box;}}
