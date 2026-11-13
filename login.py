@@ -20,125 +20,195 @@ def _hide_streamlit_chrome() -> None:
 
 
 def _render_form_css() -> None:
-    # Full-viewport artwork + CSS moving highlights. Actual inputs are Streamlit widgets.
+    """CEO-ready login layout: combined logos upper left, login form on right.
+
+    Background and branding appear only for unauthenticated sessions.
+    All form controls remain native Streamlit widgets.
+    """
     css = r"""
     <style>
-    html, body, #root, [data-testid="stApp"], .stApp,
-    [data-testid="stAppViewContainer"], [data-testid="stMain"], section.main {
-        background-color:#130719 !important;
+    html, body, [data-testid="stApp"], .stApp,
+    [data-testid="stAppViewContainer"] {
+        background-color: #13051c !important;
     }
+    /* Animated campus background; keep a solid dark-right field for legibility. */
     [data-testid="stAppViewContainer"], .stApp {
-        background-image:url("data:image/gif;base64,__BACKDROP__") !important;
-        background-position:center center !important;
-        background-repeat:no-repeat !important;
-        background-size:cover !important;
-        background-attachment:fixed !important;
+        background-image:
+          linear-gradient(90deg, transparent 0%, rgba(19,5,28,.05) 30%, #13051c 76%),
+          url("data:image/gif;base64,__BACKDROP__") !important;
+        background-position: left center, left center !important;
+        background-size: 100% 100%, auto 100% !important;
+        background-repeat: no-repeat !important;
+        background-attachment: fixed !important;
     }
-    [data-testid="stMain"], section.main {background:transparent !important;}
-    /* Soft glow and waves move; the login card does not. */
-    [data-testid="stAppViewContainer"]::before {
-        content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
-        background:radial-gradient(ellipse 35% 24% at 82% 80%,rgba(157,38,174,.17),transparent 72%);
-        animation:jkShimmer 11s ease-in-out infinite alternate;
+    [data-testid="stMain"], section.main {
+        background: transparent !important;
     }
-    @keyframes jkShimmer {0%{opacity:.16;transform:translateX(-2%)}100%{opacity:.64;transform:translateX(2%)}}
     [data-testid="stMainBlockContainer"], .block-container {
-        padding:clamp(18px,3vh,34px) 24px 25px !important;
-        max-width:1100px !important;
-        position:relative !important;
-        z-index:1 !important;
+        max-width: 1500px !important;
+        width: 100% !important;
+        padding: clamp(20px,3vh,38px) clamp(18px,3vw,50px) 24px !important;
+        margin: 0 auto !important;
     }
-    /* One top row: Jaipuria on left and AACSB on right. */
+    /* Both brand marks form one left-aligned cluster, not opposite ends. */
     .jk-exec-logos {
-        display:flex;align-items:center;justify-content:space-between;
-        width:100%;max-width:1040px;margin:0 auto clamp(19px,3vh,30px);
-        gap:22px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: clamp(14px,1.6vw,26px);
+        margin: 0 0 clamp(34px,5vh,52px) 0;
+        padding: 0;
+        width: max-content;
+        max-width: 100%;
+        min-height: 80px;
     }
-    .jk-exec-logos .jk-main-logo {width:clamp(210px,25vw,315px);max-height:106px;object-fit:contain;object-position:left;}
-    .jk-exec-logos .jk-accreditation {width:clamp(115px,16vw,185px);max-height:85px;object-fit:contain;object-position:right;}
-    .jk-exec-title {text-align:center;margin:0 auto 8px;max-width:750px;}
-    .jk-exec-title h1 {font-family:Arial,Helvetica,sans-serif !important;
-        font-size:clamp(31px,3vw,42px) !important;font-weight:800 !important;
-        color:#fff !important;line-height:1.13 !important;margin:0 !important;
-        letter-spacing:-.6px;text-shadow:0 3px 14px #09020caa;}
-    .jk-exec-title h1 span {color:#f5bd56 !important;}
+    .jk-exec-logos .jk-main-logo {
+        width: clamp(205px,20vw,290px);
+        height: auto; object-fit: contain; display:block;
+    }
+    .jk-exec-logos .jk-logo-separator {
+        width:1px; height:64px; background: rgba(235,181,78,.82);
+        flex-shrink:0;
+    }
+    .jk-exec-logos .jk-accreditation {
+        width: clamp(105px,12vw,165px);
+        height:auto;object-fit:contain;display:block;
+    }
+    /* Heading and login form are aligned to the SAME right-hand column. */
+    .jk-exec-title {
+        width: 49%;
+        margin: 0 0 16px auto;
+        text-align:center;
+        padding:0 8px;
+    }
+    .jk-exec-title h1 {
+        font-family: Arial, Helvetica, sans-serif !important;
+        font-size: clamp(30px,2.85vw,49px) !important;
+        font-weight: 800 !important;
+        line-height: 1.14 !important;
+        letter-spacing: -.4px;
+        color: #f5c665 !important;
+        margin:0 !important;
+        text-shadow:0 3px 10px rgba(0,0,0,.27);
+    }
     .jk-exec-title .jk-title-glow {
-        height:3px;width:150px;border-radius:4px;margin:14px auto 24px;
-        background:linear-gradient(90deg,transparent,#f5c769,transparent);
-        box-shadow:0 0 14px #f4b94c95;
+        width: 54%;height:3px;
+        margin:18px auto 22px;
+        border-radius:6px;
+        background:linear-gradient(90deg,transparent,#ffcf6e,transparent);
+        box-shadow:0 0 13px rgba(255,200,96,.65);
     }
-    /* Form card styled via streamlit testids rather than imaginary HTML wrappers */
-    [data-testid="stForm"],div[data-testid="stForm"] {
-        border:1px solid rgba(194,98,218,.85) !important;
-        background:linear-gradient(160deg,rgba(51,17,63,.95),rgba(28,10,38,.96)) !important;
-        box-shadow:0 18px 46px #06020bad,0 0 0 1px #e2a6ec1c inset !important;
-        border-radius:19px !important;padding:18px 18px 20px !important;
-        max-width:460px !important;margin:0 auto !important;
+    /* Streamlit columns arrange the real form; no fake image-only controls. */
+    [data-testid="stHorizontalBlock"]:has([data-testid="stForm"]) {
+        align-items: flex-start !important;
+        gap:0 !important;
+    }
+    [data-testid="stForm"] {
+        width: 100% !important;
+        max-width: 550px !important;
+        margin:0 auto !important;
+        padding: clamp(18px,1.8vw,28px) !important;
+        background: linear-gradient(145deg, rgba(51,17,64,.91), rgba(29,7,41,.94)) !important;
+        border: 1px solid rgba(199,103,214,.87) !important;
+        border-radius: 23px !important;
+        box-shadow:0 18px 44px rgba(4,0,8,.42), inset 0 1px 0 rgba(255,255,255,.07) !important;
     }
     [data-testid="stForm"] label p,
     [data-testid="stForm"] [data-testid="stWidgetLabel"] p {
-        color:#fff !important;font-size:14px !important;font-weight:650 !important;
-        font-family:Arial,Helvetica,sans-serif !important;
+        color:#fff !important;font:700 15px Arial,Helvetica,sans-serif !important;
     }
     [data-testid="stForm"] [data-testid="stTextInputRootElement"] {
-        background:#2c1538 !important;border:1px solid #78458b !important;
-        border-radius:10px !important;min-height:45px !important;
+        background:rgba(45,20,57,.94) !important;
+        border:1px solid #8f54a0 !important;
+        border-radius:10px !important;
+        min-height:48px !important;
     }
-    [data-testid="stForm"] [data-testid="stTextInputRootElement"] input {
-        color:#fff !important;background:transparent !important;
-        caret-color:#ffcc6e !important;font-size:15px !important;
+    [data-testid="stForm"] input {
+        color:#fff !important; background:transparent !important;
+        caret-color:#ffd57c !important;font-size:15px !important;
     }
-    [data-testid="stForm"] [data-testid="stTextInputRootElement"] input::placeholder {color:#e7d8eb !important;opacity:.9;}
-    [data-testid="stForm"] [data-testid="stTextInputRootElement"] svg {color:#fff !important;fill:none;}
+    [data-testid="stForm"] input::placeholder {
+        color:#dfcfe3 !important;opacity:.95 !important;
+    }
+    [data-testid="stForm"] button[aria-label="Show password"],
+    [data-testid="stForm"] button[aria-label="Hide password"] {color:white !important;}
     [data-testid="stForm"] [data-testid="stFormSubmitButton"] button {
-        width:100% !important;min-height:48px !important;border:1px solid #eabb66 !important;
-        border-radius:11px !important;color:#291606 !important;
-        background:linear-gradient(180deg,#ffe3a2 0%,#eeb54f 52%,#bc7a19 100%) !important;
-        box-shadow:0 8px 16px #0007,inset 0 1px #fff9 !important;
-        font-weight:800 !important;font-size:16px !important;
+        width:100% !important;min-height:50px !important;
+        border:1px solid #f2d08b !important;border-radius:12px !important;
+        background:linear-gradient(180deg,#ffe39a 0%,#f5bf5e 48%,#c78b26 100%) !important;
+        color:#241304 !important;font-weight:800 !important;font-size:17px !important;
+        box-shadow:0 8px 17px rgba(0,0,0,.29),inset 0 1px rgba(255,255,255,.7) !important;
     }
-    [data-testid="stForm"] [data-testid="stFormSubmitButton"] button:hover {filter:brightness(1.07) !important;}
-    [data-testid="stForm"] [data-testid="stFormSubmitButton"] button:focus-visible {outline:3px solid white !important;outline-offset:2px;}
-    .jk-login-note {text-align:center;margin:12px auto;color:#eedbf4;font:12px Arial,Helvetica,sans-serif;text-shadow:0 1px 5px #0009;}
-    [data-testid="stAlert"]{max-width:460px;margin:10px auto 0 !important;border-radius:10px !important;}
-    @media(max-width:700px){
-        .jk-exec-logos {gap:10px;margin-bottom:26px;}
-        .jk-exec-logos .jk-main-logo{width:58%;}
-        .jk-exec-logos .jk-accreditation{width:34%;}
-        .jk-exec-title h1{font-size:28px !important;}
-        [data-testid="stMainBlockContainer"], .block-container{padding:18px 12px 18px !important;}
-        [data-testid="stForm"]{padding:14px !important;}
+    [data-testid="stForm"] [data-testid="stFormSubmitButton"] button:hover {
+        filter:brightness(1.07);
     }
-    @media(prefers-reduced-motion:reduce){
-       [data-testid="stAppViewContainer"]::before{animation:none !important;}
+    [data-testid="stForm"] [data-testid="stFormSubmitButton"] button:focus-visible {
+        outline:3px solid #fff !important;outline-offset:2px !important;
+    }
+    .jk-login-note {
+        text-align:center;
+        margin:22px 0 0 auto;
+        width:49%;
+        color:#f0e6f2;
+        font:13px Arial,Helvetica,sans-serif;
+        text-shadow:0 1px 6px #000;
+    }
+    [data-testid="stAlert"] {
+        max-width:550px;margin:12px auto 0 !important;
+        border-radius:10px !important;
+    }
+    @media(max-width:850px) {
+        [data-testid="stMainBlockContainer"],.block-container {
+            padding:20px 12px 28px !important;
+        }
+        .jk-exec-logos {margin:0 auto 36px;justify-content:center;min-height:65px;}
+        .jk-exec-logos .jk-main-logo {width:clamp(160px,38vw,260px);}
+        .jk-exec-logos .jk-accreditation {width:clamp(85px,22vw,142px);}
+        .jk-exec-logos .jk-logo-separator {height:48px;}
+        .jk-exec-title {width:100%;max-width:620px;margin:0 auto 15px;}
+        .jk-exec-title h1 {font-size:clamp(28px,6vw,39px) !important;}
+        .jk-login-note {width:100%;margin:15px auto 0;}
+        [data-testid="stHorizontalBlock"]:has([data-testid="stForm"]) {display:block !important;}
+        [data-testid="stHorizontalBlock"]:has([data-testid="stForm"]) > [data-testid="stColumn"] {width:100% !important;max-width:100% !important;}
+        /* Keep the building at left and the form readable on small screens. */
+        [data-testid="stAppViewContainer"],.stApp {
+            background-image:linear-gradient(90deg,rgba(18,5,27,.74),rgba(18,5,27,.88)),url("data:image/gif;base64,__BACKDROP__") !important;
+        }
+    }
+    @media(prefers-reduced-motion:reduce) {
+        /* GIF cannot honor reduced motion; a solid overlay makes it unobtrusive. */
+        [data-testid="stAppViewContainer"],.stApp {background-color:#13051c !important;}
     }
     </style>""".replace("__BACKDROP__", _LOGIN_BG)
-    st.markdown(css,unsafe_allow_html=True)
+    st.markdown(css, unsafe_allow_html=True)
 
 
 def _render_login_branding() -> None:
     html = """
     <div class="jk-exec-logos">
       <img class="jk-main-logo" src="data:image/png;base64,__LOGO__" alt="Jaipuria Institute of Management" />
+      <span class="jk-logo-separator" aria-hidden="true"></span>
       <img class="jk-accreditation" src="data:image/png;base64,__AACSB__" alt="AACSB Accredited" />
     </div>
     <div class="jk-exec-title">
-      <h1>Executive Daily<br/><span>Admissions Dashboard</span></h1>
+      <h1>Executive Daily<br/>Admissions Dashboard</h1>
       <div class="jk-title-glow"></div>
     </div>
     """.replace("__LOGO__", _JAIPURIA_LOGO).replace("__AACSB__", _AACSB_LOGO)
-    st.markdown(html,unsafe_allow_html=True)
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def _render_login_form() -> tuple[bool, str, str, object]:
-    _, center, _ = st.columns([1,1.2,1],gap="small")
-    with center:
-        with st.form("jaipuria_login_form",clear_on_submit=False):
-            username = st.text_input("Username",key="login_username",placeholder="Enter Username")
-            password = st.text_input("Password",key="login_password",type="password",placeholder="Enter Password")
-            submitted = st.form_submit_button("Log in  →",use_container_width=True)
+    # Exact desktop layout: the left side remains open for campus imagery,
+    # while real Streamlit controls sit in the right-side column.
+    _, right = st.columns([1.04, 0.96], gap="small", vertical_alignment="top")
+    with right:
+        with st.form("jaipuria_login_form", clear_on_submit=False):
+            username = st.text_input("Username", key="login_username", placeholder="Enter Username")
+            password = st.text_input("Password", key="login_password", type="password", placeholder="Enter Password")
+            submitted = st.form_submit_button("Log in  →", use_container_width=True)
         feedback = st.empty()
-    return submitted,username,password,feedback
+    return submitted, username, password, feedback
 
 
 def _auth_config() -> tuple[str, str]:
