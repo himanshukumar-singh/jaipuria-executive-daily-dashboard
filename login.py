@@ -33,19 +33,54 @@ def _render_form_css() -> None:
         background-repeat: no-repeat !important;
         background-attachment: fixed !important;
     }
+    /* Moving gold reflection on the campus-photo panel: decorative only. */
+    [data-testid="stAppViewContainer"]::before {
+        content:"";
+        position:fixed;
+        left:0;top:0;
+        width:50%;height:100%;
+        pointer-events:none;
+        z-index:0;
+        background:linear-gradient(105deg,
+           transparent 0%, transparent 42%,
+           rgba(255,197,76,.0) 46%,
+           rgba(255,213,115,.18) 49%,
+           rgba(255,250,200,.28) 50%,
+           rgba(255,213,115,.12) 51%,
+           transparent 54%,transparent 100%);
+        background-size:260% 100%;
+        background-position:110% 0;
+        -webkit-mask-image:linear-gradient(to bottom,transparent 8%,black 19%,black 81%,transparent 94%);
+        mask-image:linear-gradient(to bottom,transparent 8%,black 19%,black 81%,transparent 94%);
+        animation:jkCampusGoldSweep 9s ease-in-out infinite;
+        will-change:background-position;
+    }
+    @keyframes jkCampusGoldSweep {
+        0%,12% {background-position:110% 0;opacity:.2;}
+        46% {opacity:1;}
+        76%,100% {background-position:-110% 0;opacity:.15;}
+    }
     /* Gold and purple wave from the approved image; no fake UI elements. */
     [data-testid="stAppViewContainer"]::after {
         content: "";
         position: fixed;
         bottom: 0; left: 0; width: 100%;
         height: clamp(34px, 11vh, 115px);
-        background-image: url("data:image/jpeg;base64,__BOTTOM_WAVE__");
-        background-size: 100% 100%;
+        background-image:
+           linear-gradient(100deg,transparent 35%,rgba(255,210,104,0) 45%,rgba(255,235,157,.48) 50%,rgba(255,210,104,0) 55%,transparent 65%),
+           url("data:image/jpeg;base64,__BOTTOM_WAVE__");
+        background-size: 250% 100%,100% 100%;
+        background-position: 110% 0, center;
         background-repeat: no-repeat;
+        animation:jkWaveGoldSweep 10s ease-in-out infinite;
         pointer-events:none;
         z-index:0;
         opacity:.82;
     }
+    @keyframes jkWaveGoldSweep {
+        0%,15% {background-position:110% 0,center;}
+        78%,100% {background-position:-110% 0,center;}
+     }
     [data-testid="stMain"], section.main {background:transparent !important;z-index:1;position:relative;}
     [data-testid="stMainBlockContainer"], .block-container {
         box-sizing:border-box !important;
@@ -76,11 +111,17 @@ def _render_form_css() -> None:
         height:3px;
         width:77%;
         margin:24px auto 15px;
-        background:linear-gradient(90deg,transparent,#d59033,#fff2bc,#d59033,transparent);
+        background:linear-gradient(90deg,transparent 0%,#a86b28 30%,#f7d58b 45%,#fff8d6 50%,#f7d58b 55%,#a86b28 70%,transparent 100%);
+        background-size:210% 100%;
         box-shadow:0 0 14px rgba(255,181,68,.45);
         border-radius:10px;
+        animation:jkTitleGoldSweep 7s linear infinite;
     }
-    [data-testid="stHorizontalBlock"]:has([data-testid="stForm"]) {
+    @keyframes jkTitleGoldSweep {
+        from {background-position:100% 50%;}
+        to   {background-position:-100% 50%;}
+     }
+     [data-testid="stHorizontalBlock"]:has([data-testid="stForm"]) {
         gap:0 !important;
         align-items:flex-start !important;
     }
@@ -88,7 +129,7 @@ def _render_form_css() -> None:
         box-sizing:border-box !important;
         background:linear-gradient(145deg,rgba(62,23,73,.93),rgba(40,11,53,.95)) !important;
         width:100% !important;
-        max-width:660px !important;
+        max-width:540px !important;
         padding:clamp(20px,2.0vw,35px) !important;
         margin:0 auto !important;
         border-radius:24px !important;
@@ -130,10 +171,17 @@ def _render_form_css() -> None:
         font:800 19px Arial,Helvetica,sans-serif !important;
         border-radius:13px !important;
         border:1px solid #ffe193 !important;
-        background:linear-gradient(180deg,#ffe69e 0%,#f7c363 50%,#d69731 100%) !important;
+        background:
+          linear-gradient(105deg,transparent 35%,rgba(255,255,240,.55) 49%,transparent 62%) 110% 0 / 250% 100% no-repeat,
+          linear-gradient(180deg,#ffe69e 0%,#f7c363 50%,#d69731 100%) !important;
         box-shadow:0 9px 20px rgba(0,0,0,.3),inset 0 1px rgba(255,255,255,.7) !important;
+        animation:jkButtonGoldSweep 8s ease-in-out infinite;
     }
-    [data-testid="stForm"] [data-testid="stFormSubmitButton"] button:hover {filter:brightness(1.07);}
+    @keyframes jkButtonGoldSweep {
+        0%,18% {background-position:110% 0,center;}
+        80%,100% {background-position:-110% 0,center;}
+     }
+     [data-testid="stForm"] [data-testid="stFormSubmitButton"] button:hover {filter:brightness(1.07);}
     [data-testid="stForm"] [data-testid="stFormSubmitButton"] button:focus-visible {outline:3px solid white;outline-offset:2px;}
     .jk-login-note {
         box-sizing:border-box;
@@ -143,7 +191,7 @@ def _render_form_css() -> None:
         width:49.2%;
         text-align:center;
     }
-    [data-testid="stAlert"] {max-width:660px;margin:8px auto 0 !important;border-radius:10px !important;}
+    [data-testid="stAlert"] {max-width:540px;margin:8px auto 0 !important;border-radius:10px !important;}
     /* Normal laptop screen: heading, inputs and error message fit in one view. */
     @media(min-width:851px) and (max-height:830px) {
         [data-testid="stMainBlockContainer"],.block-container {padding-top:clamp(65px,11vh,98px) !important;}
@@ -155,7 +203,15 @@ def _render_form_css() -> None:
         [data-testid="stForm"] [data-testid="stFormSubmitButton"] button {min-height:46px !important;}
         .jk-login-note {margin-top:8px;}
     }
-    @media(max-width:850px) {
+    @media(prefers-reduced-motion:reduce) {
+        [data-testid="stAppViewContainer"]::before,
+        [data-testid="stAppViewContainer"]::after,
+        .jk-exec-title .jk-title-glow,
+        [data-testid="stForm"] [data-testid="stFormSubmitButton"] button {
+             animation:none !important;
+        }
+     }
+     @media(max-width:850px) {
         [data-testid="stAppViewContainer"],.stApp {
            background-image:
              linear-gradient(90deg,rgba(20,4,29,.84),rgba(20,4,29,.91)),
@@ -169,9 +225,9 @@ def _render_form_css() -> None:
         .jk-exec-title .jk-title-glow {margin:15px auto 8px;}
         [data-testid="stHorizontalBlock"]:has([data-testid="stForm"]) {display:block !important;}
         [data-testid="stHorizontalBlock"]:has([data-testid="stForm"]) > [data-testid="stColumn"] {width:100% !important;max-width:100% !important;}
-        [data-testid="stForm"] {max-width:550px !important;padding:22px !important;}
-        .jk-login-note {width:100%;max-width:550px;margin:15px auto 0;}
-        [data-testid="stAlert"] {max-width:550px;}
+        [data-testid="stForm"] {max-width:500px !important;padding:22px !important;}
+        .jk-login-note {width:100%;max-width:500px;margin:15px auto 0;}
+        [data-testid="stAlert"] {max-width:500px;}
     }
     </style>
     """.replace("__LEFT_PANEL__", _LEFT_PANEL).replace("__BOTTOM_WAVE__", _BOTTOM_WAVE)
