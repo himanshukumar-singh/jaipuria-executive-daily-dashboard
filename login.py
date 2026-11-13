@@ -47,7 +47,7 @@ def _render_form_css() -> None:
     [data-testid="stMainBlockContainer"], .block-container {
         max-width: 1500px !important;
         width: 100% !important;
-        padding: clamp(20px,3vh,38px) clamp(18px,3vw,50px) 24px !important;
+        padding: clamp(12px,1.8vh,22px) clamp(18px,3vw,50px) 10px !important;
         margin: 0 auto !important;
     }
     /* Both brand marks form one left-aligned cluster, not opposite ends. */
@@ -56,11 +56,11 @@ def _render_form_css() -> None:
         align-items: center;
         justify-content: flex-start;
         gap: clamp(14px,1.6vw,26px);
-        margin: 0 0 clamp(10px,1.8vh,20px) 0;
+        margin: 0 0 4px 0;
         padding: 0;
         width: max-content;
         max-width: 100%;
-        min-height: 80px;
+        min-height: 68px;
     }
     .jk-exec-logos .jk-main-logo {
         width: clamp(205px,20vw,290px);
@@ -77,7 +77,7 @@ def _render_form_css() -> None:
     /* Heading and login form are aligned to the SAME right-hand column. */
     .jk-exec-title {
         width: 49%;
-        margin: -30px 0 11px auto;
+        margin: -56px 0 3px auto;
         text-align:center;
         padding:0 8px;
     }
@@ -93,7 +93,7 @@ def _render_form_css() -> None:
     }
     .jk-exec-title .jk-title-glow {
         width: 54%;height:3px;
-        margin:12px auto 15px;
+        margin:9px auto 8px;
         border-radius:6px;
         background:linear-gradient(90deg,transparent,#ffcf6e,transparent);
         box-shadow:0 0 13px rgba(255,200,96,.65);
@@ -107,7 +107,7 @@ def _render_form_css() -> None:
         width: 100% !important;
         max-width: 550px !important;
         margin:0 auto !important;
-        padding: clamp(18px,1.8vw,28px) !important;
+        padding: clamp(15px,1.3vw,21px) !important;
         background: linear-gradient(145deg, rgba(51,17,64,.91), rgba(29,7,41,.94)) !important;
         border: 1px solid rgba(199,103,214,.87) !important;
         border-radius: 23px !important;
@@ -121,7 +121,7 @@ def _render_form_css() -> None:
         background:rgba(45,20,57,.94) !important;
         border:1px solid #8f54a0 !important;
         border-radius:10px !important;
-        min-height:48px !important;
+        min-height:44px !important;
     }
     [data-testid="stForm"] input {
         color:#fff !important; background:transparent !important;
@@ -133,7 +133,7 @@ def _render_form_css() -> None:
     [data-testid="stForm"] button[aria-label="Show password"],
     [data-testid="stForm"] button[aria-label="Hide password"] {color:white !important;}
     [data-testid="stForm"] [data-testid="stFormSubmitButton"] button {
-        width:100% !important;min-height:50px !important;
+        width:100% !important;min-height:46px !important;
         border:1px solid #f2d08b !important;border-radius:12px !important;
         background:linear-gradient(180deg,#ffe39a 0%,#f5bf5e 48%,#c78b26 100%) !important;
         color:#241304 !important;font-weight:800 !important;font-size:17px !important;
@@ -147,15 +147,40 @@ def _render_form_css() -> None:
     }
     .jk-login-note {
         text-align:center;
-        margin:22px 0 0 auto;
+        margin:10px 0 0 auto;
         width:49%;
         color:#f0e6f2;
         font:13px Arial,Helvetica,sans-serif;
         text-shadow:0 1px 6px #000;
     }
     [data-testid="stAlert"] {
-        max-width:550px;margin:12px auto 0 !important;
+        max-width:550px;margin:8px auto 0 !important;
         border-radius:10px !important;
+    }
+    /* Compact vertical rhythm: incorrect credentials stay within a single
+       desktop viewport; no hidden error or scroll needed at normal zoom. */
+    [data-testid="stForm"] [data-testid="stVerticalBlock"] {
+        gap: .48rem !important;
+    }
+    [data-testid="stForm"] [data-testid="stWidgetLabel"] {
+        margin-bottom: .12rem !important;
+    }
+    @media(min-width:851px) and (max-height:800px) {
+        [data-testid="stMainBlockContainer"], .block-container {
+            padding-top: 10px !important;
+            padding-bottom: 5px !important;
+        }
+        .jk-exec-logos {min-height:60px;margin-bottom:2px;}
+        .jk-exec-logos .jk-main-logo {width:clamp(195px,18vw,265px);}
+        .jk-exec-logos .jk-accreditation {width:clamp(100px,10vw,145px);}
+        .jk-exec-title {margin-top:-54px;margin-bottom:0;}
+        .jk-exec-title h1 {font-size:clamp(28px,2.65vw,44px) !important;}
+        .jk-exec-title .jk-title-glow {margin:6px auto 6px;}
+        [data-testid="stForm"] {padding:14px 18px !important;}
+        [data-testid="stForm"] [data-testid="stTextInputRootElement"] {min-height:41px !important;}
+        [data-testid="stForm"] [data-testid="stFormSubmitButton"] button {min-height:43px !important;}
+        .jk-login-note {margin-top:5px;}
+        [data-testid="stAlert"] {margin-top:6px !important;}
     }
     @media(max-width:850px) {
         [data-testid="stMainBlockContainer"],.block-container {
@@ -165,7 +190,7 @@ def _render_form_css() -> None:
         .jk-exec-logos .jk-main-logo {width:clamp(160px,38vw,260px);}
         .jk-exec-logos .jk-accreditation {width:clamp(85px,22vw,142px);}
         .jk-exec-logos .jk-logo-separator {height:48px;}
-        .jk-exec-title {width:100%;max-width:620px;margin:0 auto 15px;}
+        .jk-exec-title {width:100%;max-width:620px;margin:0 auto 10px;}
         .jk-exec-title h1 {font-size:clamp(28px,6vw,39px) !important;}
         .jk-login-note {width:100%;margin:15px auto 0;}
         [data-testid="stHorizontalBlock"]:has([data-testid="stForm"]) {display:block !important;}
