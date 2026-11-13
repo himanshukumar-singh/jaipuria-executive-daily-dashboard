@@ -12,7 +12,6 @@ from datetime import datetime, date, timedelta, timezone
 from html import escape
 from pathlib import Path
 from zoneinfo import ZoneInfo
-import pandas as pd
 import streamlit as st
 
 SHEET_ID = "1S8svH_Y0s2EX9xvNjRRgVMea7C1cMJ5RwrAE9vUKuNg"
@@ -43,136 +42,161 @@ from login import require_login
 
 require_login()
 
+# Import Pandas only for authenticated sessions, not while displaying login.
+import pandas as pd
+
+
+# Operational settings. These values are intentionally short so a failed API call
+# does not make the entire page hang for a long period.
+DATA_CACHE_SECONDS = 180
+REPORT_COLUMNS = ("id", "date", "campus", "stage", "substage", "state")
+CAMPUS_UPPER = {campus.upper() for campus in CAMPUSES}
+
+
+def empty_frame() -> pd.DataFrame:
+    """Stable schema even when a tab is empty, missing or malformed."""
+    return pd.DataFrame(columns=REPORT_COLUMNS)
+
 
 def service_account_info() -> dict:
-    """Use existing credentials, never include a private key in app.py."""
+    """Never publish credential details or their exceptions in the dashboard."""
     try:
         if "gcp_service_account" in st.secrets:
-            return dict(st.secrets["gcp_service_account"])
-    except Exception:
+            cfg = dict(st.secrets["gcp_service_account"])
+            if cfg.get("private_key") and cfg.get("client_email"):
+                return cfg
+    except (KeyError, OSError, ValueError, TypeError):
         pass
     env = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
     if env:
-        return json.loads(env)
-    # Reuse your *existing* Streamlit secrets in the previous dashboard folder.
+        try:
+            cfg = json.loads(env)
+            if isinstance(cfg, dict) and cfg.get("private_key") and cfg.get("client_email"):
+                return cfg
+        except (ValueError, TypeError):
+            pass
+    # Retain the original developer's local-only compatibility fallback.
     existing = Path(r"E:\Admission 2022\Projects\Application_Dashboard\.streamlit\secrets.toml")
-    if existing.is_file():
-        content = tomllib.loads(existing.read_text(encoding="utf-8-sig"))
-        if "gcp_service_account" in content:
-            return content["gcp_service_account"]
-    raise RuntimeError(
-        "Google Service Account not found. Keep credentials in the existing "
-        "Application_Dashboard/.streamlit/secrets.toml (gcp_service_account) "
-        "or set GOOGLE_SERVICE_ACCOUNT_JSON. No new folder required."
-    )
+    try:
+        if existing.is_file():
+            cfg = tomllib.loads(existing.read_text(encoding="utf-8-sig")).get("gcp_service_account", {})
+            if isinstance(cfg, dict) and cfg.get("private_key") and cfg.get("client_email"):
+                return cfg
+    except (OSError, ValueError, TypeError):
+        pass
+    raise RuntimeError("Service account is not configured")
 
 
 def key_name(value: object) -> str:
-    return re.sub(r"[^a-z0-9]", "", str(value).lower())
+    return re.sub(r"[^a-z0-9]", "", str(value).strip().lower())
 
 
-def frame_from_rows(rows: list[list[str]], tab: str) -> pd.DataFrame:
-    """Accept headers that are not necessarily in row 1."""
+def frame_from_rows(rows: list[list[str]], tab: str) -> tuple[pd.DataFrame, str]:
+    """Extract six fields, safely tolerating blank/missing headers or cells.
+
+    Status is 'ok', 'empty' or 'invalid'; never raises for sheet contents.
+    """
+    if not rows or not any(isinstance(row, (list, tuple)) and any(str(x).strip() for x in row) for row in rows):
+        return empty_frame(), "empty"
     aliases = {
-        "prospectid":"id", "leadid":"id", "transactiondate":"date",
-        "preference1":"campus", "leadstage":"stage", "leadsubstage":"substage",
-        "correspondencestate":"state", "presentstate":"state"
+        "prospectid": "id", "leadid": "id", "transactiondate": "date",
+        "preference1": "campus", "leadstage": "stage", "leadsubstage": "substage",
+        "correspondencestate": "state", "presentstate": "state",
     }
-    if not rows:
-        raise ValueError(f"{tab}: empty sheet")
-    best_idx, best_score = 0, -1
-    for i, row in enumerate(rows[:35]):
-        match = {aliases.get(key_name(x)) for x in row}
-        score = len(match & {"id", "date", "campus", "stage"})
-        if score > best_score:
-            best_idx, best_score = i, score
-    if best_score < 4:
-        raise ValueError(f"{tab}: Prospect ID, Transaction Date, Preference 1, Lead Stage headers needed")
-    headers = [aliases.get(key_name(h), f"ignored_{i}") for i,h in enumerate(rows[best_idx])]
-    if "state" not in headers:
-        raise ValueError(
-            f"{tab}: 'CORRESPONDENCE STATE' column was not found in the "
-            "Google Sheets header row; check the exact column heading."
-        )
-    records=[]
-    for r in rows[best_idx+1:]:
-        if not any(str(x).strip() for x in r):
+    required = {"id", "date", "campus", "stage"}
+    best_idx, best_score = -1, -1
+    for idx, row in enumerate(rows[:40]):
+        if not isinstance(row, (list, tuple)):
             continue
-        item={}
-        for j,h in enumerate(headers):
-            if h in {"id","date","campus","stage","substage","state"} and h not in item:
-                item[h] = r[j] if j < len(r) else ""
-        records.append(item)
-    return pd.DataFrame.from_records(records, columns=["id","date","campus","stage","substage","state"]).fillna("")
+        fields = {aliases.get(key_name(h)) for h in row}
+        score = len(fields & required)
+        if score > best_score:
+            best_idx, best_score = idx, score
+    if best_score < len(required):
+        return empty_frame(), "invalid"
+    headers = [aliases.get(key_name(h)) for h in rows[best_idx]]
+    # Only one canonical column per field. Prefer Correspondence State over Present State.
+    mapping: dict[str, int] = {}
+    for idx, original in enumerate(rows[best_idx]):
+        field = headers[idx]
+        if field is None:
+            continue
+        if field == "state":
+            if field not in mapping or key_name(original) == "correspondencestate":
+                mapping[field] = idx
+        elif field not in mapping:
+            mapping[field] = idx
+    data_rows = [r for r in rows[best_idx+1:] if isinstance(r, (list, tuple)) and any(str(c).strip() for c in r)]
+    if not data_rows:
+        return empty_frame(), "empty"
+    # Read only six fields, independent of source table width.
+    records = [tuple(str(row[mapping[k]]).strip() if k in mapping and mapping[k] < len(row) and row[mapping[k]] is not None else ""
+                     for k in REPORT_COLUMNS) for row in data_rows]
+    frame = pd.DataFrame.from_records(records, columns=REPORT_COLUMNS)
+    return frame, "ok"
 
 
-@st.cache_data(ttl=55, show_spinner=False)
-def load_three_sheets(sheet_id: str, credentials_json: str, schema_version: int = 2) -> dict[str, pd.DataFrame]:
-    """Read three sheets in a single Sheets API batch request; cache for 55 sec.
+@st.cache_data(ttl=DATA_CACHE_SECONDS, show_spinner=False, max_entries=2)
+def load_three_sheets(sheet_id: str, _credentials_json: str, schema_version: int = 5
+                      ) -> tuple[dict[str, pd.DataFrame], dict[str, str]]:
+    """Batch-read all three tabs; on failure try individual tabs.
 
-    This removes the three separate worksheet API calls on each refresh.
+    Returns per-tab status rather than throwing a dashboard-wide exception.
+    Credentials are excluded from the cache key so private key text isn't hashed.
     """
     import gspread
     from google.oauth2.service_account import Credentials
-
-    credentials = Credentials.from_service_account_info(
-        json.loads(credentials_json),
+    creds = Credentials.from_service_account_info(
+        json.loads(_credentials_json),
         scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
     )
-    workbook = gspread.authorize(credentials).open_by_key(sheet_id)
-    tabs = list(TABS)
-    # Use A:AZ for the source table. This is wide enough for the existing
-    # admissions sheet while avoiding unrelated columns farther to the right.
-    # Data is still pruned to the five required fields by frame_from_rows.
+    client = gspread.authorize(creds)
+    workbook = client.open_by_key(sheet_id)
+    tabs = tuple(TABS)
+    frames = {tab: empty_frame() for tab in tabs}
+    statuses = {tab: "unavailable" for tab in tabs}
     ranges = [f"'{tab}'!A:AZ" for tab in tabs]
-    response = workbook.values_batch_get(ranges=ranges)
-    value_ranges = response.get("valueRanges", [])
-    if len(value_ranges) != len(tabs):
-        raise RuntimeError(
-            f"Google Sheets returned {len(value_ranges)} ranges for {len(tabs)} tabs."
-        )
-    return {
-        tab: frame_from_rows(data.get("values", []), tab)
-        for tab, data in zip(tabs, value_ranges)
-    }
+    try:
+        resp = workbook.values_batch_get(ranges=ranges)
+        value_ranges = resp.get("valueRanges", [])
+        if len(value_ranges) != len(tabs):
+            raise ValueError("Incomplete batch response")
+        for tab, vr in zip(tabs, value_ranges):
+            frames[tab], statuses[tab] = frame_from_rows(vr.get("values", []) or [], tab)
+        return frames, statuses
+    except Exception:
+        # A single renamed/missing tab should not suppress the other two cycles.
+        pass
+    for tab in tabs:
+        try:
+            values = workbook.worksheet(tab).get_all_values()
+            frames[tab], statuses[tab] = frame_from_rows(values, tab)
+        except Exception:
+            frames[tab], statuses[tab] = empty_frame(), "unavailable"
+    return frames, statuses
 
 
 def parse_dates(series: pd.Series) -> pd.Series:
-    """Expect day-first sheet dates; also accepts ISO and numeric Excel serial dates."""
-    raw = series.astype(str).str.strip()
-    excel_num = pd.to_numeric(raw, errors="coerce")
-    iso = raw.str.match(r"^\d{4}-\d{1,2}-\d{1,2}")
-    parsed = pd.to_datetime(raw.where(~iso), format="mixed", dayfirst=True, errors="coerce")
+    """Coerce mixed text, ISO and Sheets/Excel serial dates without crashing."""
+    if series.empty:
+        return pd.Series(pd.NaT, index=series.index, dtype="datetime64[ns]")
+    raw = series.fillna("").astype(str).str.strip()
+    serials = pd.to_numeric(raw, errors="coerce")
+    iso = raw.str.match(r"^\d{4}[-/]\d{1,2}[-/]\d{1,2}")
+    parsed = pd.to_datetime(raw, dayfirst=True, format="mixed", errors="coerce")
     if iso.any():
         parsed.loc[iso] = pd.to_datetime(raw.loc[iso], errors="coerce")
-    numeric_mask = excel_num.between(30000,80000)
-    if numeric_mask.any():
-        parsed.loc[numeric_mask] = pd.to_datetime(excel_num.loc[numeric_mask], unit="D", origin="1899-12-30", errors="coerce")
-    return parsed.dt.normalize()
+    serial_mask = serials.between(30000, 80000)
+    if serial_mask.any():
+        parsed.loc[serial_mask] = pd.to_datetime(serials.loc[serial_mask], unit="D", origin="1899-12-30", errors="coerce")
+    # Normalize date strings with timezone suffix if future source formatting changes.
+    try:
+        parsed = pd.to_datetime(parsed, errors="coerce")
+        return parsed.dt.tz_localize(None).dt.normalize() if getattr(parsed.dt, 'tz', None) is not None else parsed.dt.normalize()
+    except (TypeError, ValueError, AttributeError):
+        return pd.Series(pd.NaT, index=raw.index, dtype="datetime64[ns]")
 
 
-def compute_forms(frame: pd.DataFrame, year: int, today: date) -> dict[str,int]:
-    # Cycle starts around Sep in start_year and ends the following calendar year.
-    calendar_year = year + (1 if today.month <= 8 else 0)
-    import calendar
-    cutoff = pd.Timestamp(date(calendar_year, today.month, min(today.day, calendar.monthrange(calendar_year, today.month)[1])))
-    # All transactions up to the as-of cutoff are considered.
-    df=frame.copy()
-    df["date"] = parse_dates(df["date"])
-    df = df.loc[df["date"].notna() & (df["date"] <= cutoff)].copy()
-    # Campus is sourced exclusively from the Google Sheet column PREFERENCE 1.
-    df["campus"] = df["campus"].astype(str).str.strip().str.upper()
-    df["stage"] = df["stage"].astype(str).str.strip().str.upper().str.replace(r"\s+", " ",regex=True)
-    df["id"] = df["id"].astype(str).str.strip()
-    # Only one counted form per Prospect ID within each admission cycle.
-    df = df.loc[df["id"].ne("") & df["stage"].isin(FORM_STAGES)]
-    # If prospect changes preference over time, last qualifying campus is used.
-    df = df.sort_values("date", kind="stable").drop_duplicates("id", keep="last")
-    return {campus: int((df["campus"] == campus.upper()).sum()) for campus in CAMPUSES}
-
-
-# Top States counts use exactly the same eligible form logic as Total Forms:
-# qualifying stages, Transaction Date and one latest qualifying record per Prospect ID.
 STATE_ALIASES = {
     "UTTAR PRADESH": "Uttar Pradesh", "UP": "Uttar Pradesh", "U P": "Uttar Pradesh",
     "DELHI": "Delhi", "NEW DELHI": "Delhi", "DELHI NCR": "Delhi",
@@ -180,100 +204,156 @@ STATE_ALIASES = {
     "MADHYA PRADESH": "Madhya Pradesh", "MP": "Madhya Pradesh",
     "BIHAR": "Bihar", "HARYANA": "Haryana", "GUJARAT": "Gujarat",
     "WEST BENGAL": "West Bengal", "KARNATAKA": "Karnataka",
-    "ORISSA": "Odisha", "ODISHA": "Odisha",
-    "TELENGANA": "Telangana", "TELANGANA": "Telangana",
-    "JAMMU AND KASHMIR": "Jammu and Kashmir", "JAMMU & KASHMIR": "Jammu and Kashmir",
-    "J&K": "Jammu and Kashmir", "UTTARANCHAL": "Uttarakhand",
+    "ORISSA": "Odisha", "ODISHA": "Odisha", "TELENGANA": "Telangana",
+    "TELANGANA": "Telangana", "JAMMU AND KASHMIR": "Jammu and Kashmir",
+    "JAMMU & KASHMIR": "Jammu and Kashmir", "J&K": "Jammu and Kashmir",
+    "UTTARANCHAL": "Uttarakhand",
 }
 
 
 def normalized_state(value: object) -> str:
-    raw = re.sub(r"\s+", " ", str(value or "").strip()).upper()
-    raw = raw.replace(".", "")
+    raw = re.sub(r"\s+", " ", str(value or "").strip()).upper().replace(".", "")
     if raw in {"", "NAN", "NONE", "NULL", "NA", "N/A", "OTHER", "SELECT", "SELECT STATE"}:
         return ""
     return STATE_ALIASES.get(raw, raw.title())
 
 
-def compute_states(frame: pd.DataFrame, year: int, today: date, overall: bool = False) -> dict[str, int]:
-    """Deduplicate by prospect exactly as Total Forms; count by Correspondence State.
+def asof_cutoff(start_year: int, today: date) -> pd.Timestamp:
+    import calendar
+    yr = start_year + (1 if today.month <= 8 else 0)
+    return pd.Timestamp(date(yr, today.month, min(today.day, calendar.monthrange(yr, today.month)[1])))
 
-    As-on-date: cutoff matches Total Forms' year alignment.
-    Overall: count all historical qualifying transactions in that admission cycle.
+
+def count_cycle(frame: pd.DataFrame, start_year: int, today: date) -> dict:
+    """Normalize once; reuse for campus, state, and overall counting.
+
+    Dedup rules are identical to previously approved report: latest *qualifying*
+    Prospect ID transaction per cycle, by Transaction Date and PREFERENCE 1.
     """
+    empty_counts = {campus: 0 for campus in CAMPUSES}
+    result = {"forms": empty_counts.copy(), "asof": {}, "overall": {}}
+    if frame.empty:
+        return result
     df = frame.copy()
+    for col in REPORT_COLUMNS:
+        if col not in df.columns:
+            df[col] = ""
     df["date"] = parse_dates(df["date"])
     df = df[df["date"].notna()].copy()
-    if not overall:
-        import calendar
-        calendar_year = year + (1 if today.month <= 8 else 0)
-        cutoff = pd.Timestamp(date(calendar_year, today.month, min(today.day, calendar.monthrange(calendar_year, today.month)[1])))
-        df = df[df["date"] <= cutoff].copy()
-    df["id"] = df["id"].astype(str).str.strip()
-    df["stage"] = df["stage"].astype(str).str.strip().str.upper().str.replace(r"\s+", " ", regex=True)
-    df = df[df["id"].ne("") & df["stage"].isin(FORM_STAGES)]
-    df = df.sort_values("date", kind="stable").drop_duplicates("id", keep="last")
-    # Match Total Forms: only the four reported campuses belong to the report.
-    df["campus"] = df["campus"].astype(str).str.strip().str.upper()
-    df = df[df["campus"].isin({campus.upper() for campus in CAMPUSES})]
-    # Guard against pre-update cached dataframes without the newly added state column.
-    # The schema_version=2 cache key above causes a fresh read after deployment.
-    if "state" not in df.columns:
-        raise ValueError(
-            "State column is missing from cached Google Sheets data. "
-            "Clear the Streamlit app cache and refresh; verify the "
-            "CORRESPONDENCE STATE column exists in the source sheet."
-        )
-    counts = df["state"].map(normalized_state)
-    return {str(k): int(v) for k, v in counts[counts.ne("")].value_counts().items()}
+    if df.empty:
+        return result
+    for field in ("id", "campus", "stage", "state"):
+        df[field] = df[field].fillna("").astype(str).str.strip()
+    df["id"] = df["id"].replace({"nan":"", "None":""})
+    df["stage"] = df["stage"].str.upper().str.replace(r"\s+", " ", regex=True)
+    df["campus"] = df["campus"].str.upper().str.replace(r"\s+", " ", regex=True)
+    eligible = df[df["id"].ne("") & df["stage"].isin(FORM_STAGES)].copy()
+    if eligible.empty:
+        return result
+    eligible = eligible.sort_values("date", kind="stable")
+    cutoff = asof_cutoff(start_year, today)
+    snapshots = {"overall": eligible, "asof": eligible[eligible["date"] <= cutoff]}
+    for mode, subset in snapshots.items():
+        if subset.empty:
+            continue
+        dedup = subset.drop_duplicates("id", keep="last")
+        dedup = dedup[dedup["campus"].isin(CAMPUS_UPPER)]
+        if mode == "asof":
+            by_campus = dedup["campus"].value_counts()
+            result["forms"] = {c: int(by_campus.get(c.upper(), 0)) for c in CAMPUSES}
+        state_series = dedup["state"].map(normalized_state)
+        result[mode] = {str(k): int(v) for k, v in state_series[state_series.ne("")].value_counts().items()}
+    return result
+
+
+def blank_cycle(status: str) -> dict:
+    """Dash for unknown data, zeros only when source is valid with no matches."""
+    return {"status": status,
+            "forms": {campus: None for campus in CAMPUSES},
+            "asof": {}, "overall": {}}
+
+
+def build_report_data() -> tuple[dict[str, dict], dict[str, str]]:
+    statuses = {tab: "unavailable" for tab in TABS}
+    try:
+        creds = json.dumps(service_account_info(), sort_keys=True)
+        sheets, statuses = load_three_sheets(SHEET_ID, creds, schema_version=5)
+    except Exception:
+        sheets = {tab: empty_frame() for tab in TABS}
+    computed = {}
+    for tab, start_year in TABS.items():
+        status = statuses.get(tab, "unavailable")
+        if status != "ok":
+            computed[tab] = blank_cycle(status)
+            continue
+        try:
+            computed[tab] = {**count_cycle(sheets[tab], start_year, datetime.now(IST).date()), "status": status}
+        except (KeyError, ValueError, TypeError, OverflowError, AttributeError):
+            computed[tab] = blank_cycle("invalid")
+            statuses[tab] = "invalid"
+    return computed, statuses
+
+
+def number(value: object) -> str:
+    if value is None:
+        return "—"
+    try:
+        return f"{int(value):,}"
+    except (TypeError, ValueError, OverflowError):
+        return "—"
+
+
+def total_forms(forms: dict[str, int | None]) -> int | None:
+    return sum(int(v) for v in forms.values()) if all(v is not None for v in forms.values()) else None
 
 
 def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
-                      results: dict[str, dict[str, int]]) -> str:
-    """One compact top-10 table and one side insights card (no mock data)."""
-    current = state_counts["2027_29"]["asof"]
-    # Rank by current cycle; deterministic alphabetical tie breaker.
-    leaders = sorted(current, key=lambda name: (-current[name], name))[:10]
+                      results: dict[str, dict[str, int | None]],
+                      statuses: dict[str, str]) -> str:
+    """Retain the approved Top 10 + Insights design; never assume populated tabs."""
+    current = state_counts.get("2027_29", {}).get("asof", {}) or {}
+    leaders = sorted(current, key=lambda n: (-current[n], n))[:10]
     asof_tabs = ("2027_29", "2026_28", "2025_27")
     overall_tabs = ("2026_28", "2025_27")
-    tr = []
+    trs = []
     for pos, state in enumerate(leaders, 1):
-        cells = [state_counts[tab]["asof"].get(state, 0) for tab in asof_tabs]
-        cells += [state_counts[tab]["overall"].get(state, 0) for tab in overall_tabs]
-        tr.append("<tr><td class='rank-cell'><span class='rank-bubble'>" + str(pos) +
-                  "</span></td><td class='state-label'>" + escape(state) +
-                  "</td>" + "".join(f"<td>{number(v)}</td>" for v in cells) + "</tr>")
-    if not tr:
-        tr = ["<tr><td colspan='7'>No state-wise qualifying forms found</td></tr>"]
-    all_totals = [sum(state_counts[tab]["asof"].get(name,0) for name in leaders) for tab in asof_tabs]
-    all_totals += [sum(state_counts[tab]["overall"].get(name,0) for name in leaders) for tab in overall_tabs]
+        cells = [(state_counts.get(tab, {}).get("asof", {}) or {}).get(state, 0)
+                 if statuses.get(tab) == "ok" else None for tab in asof_tabs]
+        cells += [(state_counts.get(tab, {}).get("overall", {}) or {}).get(state, 0)
+                  if statuses.get(tab) == "ok" else None for tab in overall_tabs]
+        trs.append("<tr><td class='rank-cell'><span class='rank-bubble'>" + str(pos) +
+                   "</span></td><td class='state-label'>" + escape(state) +
+                   "</td>" + "".join(f"<td>{number(v)}</td>" for v in cells) + "</tr>")
+    if not trs:
+        trs = ["<tr><td colspan='7' style='padding:24px'>No state-wise records available</td></tr>"]
+    totals = []
+    for tab in asof_tabs:
+        totals.append(sum(state_counts.get(tab, {}).get("asof", {}).get(k, 0) for k in leaders)
+                      if statuses.get(tab) == "ok" else None)
+    for tab in overall_tabs:
+        totals.append(sum(state_counts.get(tab, {}).get("overall", {}).get(k, 0) for k in leaders)
+                      if statuses.get(tab) == "ok" else None)
     total_row = ("<tr class='state-total'><td colspan='2'>Top 10 Total</td>" +
-                 "".join(f"<td>{number(v)}</td>" for v in all_totals) + "</tr>")
-    current_total = sum(results["2027_29"].values())
-    previous_total = sum(results["2026_28"].values())
-    older_total = sum(results["2025_27"].values())
+                 "".join(f"<td>{number(v)}</td>" for v in totals) + "</tr>")
+    a, b, c = [total_forms(results.get(t, {})) for t in asof_tabs]
     top_name = leaders[0] if leaders else "—"
-    top_count = current.get(top_name, 0)
+    top_count = current.get(top_name) if leaders else None
     top_three = leaders[:3]
-    top_three_count = sum(current[name] for name in top_three)
-    top_three_share = (top_three_count / current_total * 100) if current_total else 0
-    top_ten_count = all_totals[0]
-    top_ten_share = (top_ten_count / current_total * 100) if current_total else 0
-    top_three_labels = ", ".join(top_three) if top_three else "—"
-    # Overall may include transactions dated later than the current matching cutoff;
-    # these represent complete historical cycle totals, not the current as-on-date.
+    top_three_count = sum(current[n] for n in top_three) if leaders else None
+    top_ten_count = totals[0]
+    def percentage(num, den):
+        return f"{100 * num / den:.1f}%" if num is not None and den and den > 0 else "—"
+    top_three_label = ", ".join(top_three) if top_three else "—"
     return f"""
     <div class='state-insights-grid'>
       <section class='states-card'>
         <div class='states-heading'><span class='states-heading-icon'>▥</span> Top 10 States – Total Forms</div>
         <div class='states-scroll'><table class='states-table'>
-          <thead>
-            <tr class='group-head'><th rowspan='2'>Rank</th><th rowspan='2'>State</th>
-              <th colspan='3'>As on Date</th><th colspan='2'>Overall</th></tr>
-            <tr class='year-head'><th>2027–29</th><th>2026–28</th><th>2025–27</th>
-              <th>2026–28</th><th>2025–27</th></tr>
-          </thead>
-          <tbody>{''.join(tr)}{total_row}</tbody>
+          <thead><tr class='group-head'><th rowspan='2'>Rank</th><th rowspan='2'>State</th>
+            <th colspan='3'>As on Date</th><th colspan='2'>Overall</th></tr>
+          <tr class='year-head'><th>2027–29</th><th>2026–28</th><th>2025–27</th>
+            <th>2026–28</th><th>2025–27</th></tr></thead>
+          <tbody>{''.join(trs)}{total_row}</tbody>
         </table></div>
         <div class='states-footnote'>Ranked by 2027–29 as-on-date forms · Correspondence State · Unique Prospect IDs</div>
       </section>
@@ -282,7 +362,7 @@ def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
         <div class='insights-inner'>
           <div class='insight-item'><span class='insight-icon'>▤</span><div>
             <strong>Total Forms | As on Date</strong>
-            <p><b>{number(current_total)}</b> in 2027–29 vs {number(previous_total)} in 2026–28 and {number(older_total)} in 2025–27</p>
+            <p><b>{number(a)}</b> in 2027–29 vs {number(b)} in 2026–28 and {number(c)} in 2025–27</p>
           </div></div>
           <div class='insight-item'><span class='insight-icon'>↗</span><div>
             <strong>Top State | 2027–29</strong>
@@ -290,32 +370,34 @@ def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
           </div></div>
           <div class='insight-item'><span class='insight-icon'>★</span><div>
             <strong>Top 3 States | 2027–29</strong>
-            <p>{escape(top_three_labels)}: <b>{number(top_three_count)}</b> forms ({top_three_share:.1f}% of all campus forms)</p>
+            <p>{escape(top_three_label)}: <b>{number(top_three_count)}</b> forms ({percentage(top_three_count,a)} of all campus forms)</p>
           </div></div>
           <div class='insight-item'><span class='insight-icon'>◉</span><div>
             <strong>Top 10 States | 2027–29</strong>
-            <p><b>{number(top_ten_count)}</b> forms ({top_ten_share:.1f}% of all campus forms)</p>
+            <p><b>{number(top_ten_count)}</b> forms ({percentage(top_ten_count,a)} of all campus forms)</p>
           </div></div>
         </div>
       </aside>
     </div>"""
 
 
-def number(n:int)->str:
-    return f"{n:,}"
-
-
-def render_report(results:dict[str,dict[str,int]], today:date, state_counts:dict[str,dict[str,dict[str,int]]])->str:
+def render_report(results: dict[str, dict[str, int | None]], today: date,
+                  state_counts: dict[str, dict[str, dict[str, int]]],
+                  statuses: dict[str, str]) -> str:
     headers = list(TABS)
     rows = ""
     for campus in CAMPUSES:
-        cells="".join(f"<td>{number(results[tab][campus])}</td>" for tab in headers)
+        cells="".join(f"<td>{number(results.get(tab, {}).get(campus))}</td>" for tab in headers)
         rows+=f"<tr><td>{escape(campus)}</td>{cells}</tr>"
-    totals=[sum(results[tab].values()) for tab in headers]
+    totals=[total_forms(results.get(tab, {})) for tab in headers]
     rows+="<tr class='total-row'><td>Total</td>"+"".join(f"<td>{number(n)}</td>" for n in totals)+"</tr>"
-    states_panel = state_report_html(state_counts, results)
+    states_panel = state_report_html(state_counts, results, statuses)
     display_date=today.strftime("%a, %d %b %Y")
     date_caption=escape(display_date)
+    affected = [tab.replace("_", "–") for tab in headers if statuses.get(tab) != "ok"]
+    note = ("<div class='source-note'>Data not available for: " +
+            escape(", ".join(affected)) +
+            ". Values shown as — until source data is restored.</div>") if affected else ""
     return f"""
     <div class="executive">
       <div class="brand-header">
@@ -323,6 +405,7 @@ def render_report(results:dict[str,dict[str,int]], today:date, state_counts:dict
         <div class="date-pill"><span class="date-orange-accent"></span><div class="date-content"><span class="date-calendar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/><path d="M8 14h2M14 14h2M8 18h2M14 18h2"/></svg></span><div><div class="date-top">Daily Report</div><div class="date-bottom">{date_caption}</div></div></div></div>
       </div>
       <div class="orange-divider"></div>
+      {note}
       <section class="form-card">
         <div class="section-title"><span class="title-text">Total Forms</span></div>
         <div class="form-table-scroll"><table class="form-table">
@@ -343,6 +426,7 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 .block-container {{max-width:100%!important;padding:0!important}}
 [data-testid="stVerticalBlock"] {{gap:0!important}}
 .executive {{width:100%;background:white;color:#16111b;font-family:Arial,Helvetica,sans-serif;}}
+.source-note {{margin:11px 3.4% -12px;background:#f6f2fa;color:#53355e;padding:8px 13px;border-radius:8px;font-size:13px;}}
 .brand-header {{height:clamp(96px,7.8vw,148px);display:flex;width:100%;align-items:stretch;overflow:hidden;position:relative;}}
 .brand-header::after {{content:"";position:absolute;bottom:0;left:1.7%;right:1.7%;height:3px;background:#f39200;border-radius:3px;pointer-events:none;z-index:8;}}
 .branding-image {{flex:1;min-width:0;margin-right:clamp(200px,13.6vw,270px);background-image:url('data:image/jpeg;base64,{HEADER_IMAGE}');background-size:100% 100%;background-position:center top;background-repeat:no-repeat;}}
@@ -402,49 +486,34 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 @media(max-width:980px) {{.state-insights-grid {{grid-template-columns:1fr;gap:15px;}}.states-table {{min-width:650px;}}}}
 </style>""",unsafe_allow_html=True)
 
-# Run a full dashboard refresh automatically every 60 s, even after midnight.
-fragment = getattr(st,"fragment",None)
-if fragment is not None:
-    @fragment(run_every="60s")
+# Keep automatic refresh without needlessly calling Google on every widget rerun.
+# Cache is shared across sessions and refreshed every three minutes.
+def display_dashboard() -> None:
+    today = datetime.now(IST).date()
+    computed, statuses = build_report_data()
+    results = {tab: computed[tab]["forms"] for tab in TABS}
+    states = {tab: {"asof": computed[tab]["asof"], "overall": computed[tab]["overall"]}
+              for tab in TABS}
+    st.markdown(render_report(results, today, states, statuses), unsafe_allow_html=True)
+
+
+fragment = getattr(st, "fragment", None)
+if callable(fragment):
+    @fragment(run_every=f"{DATA_CACHE_SECONDS}s")
     def live_report():
-        # Keep this guard consistent with login.py and its 4-hour expiry.
+        # A session that expires cannot keep viewing the report through fragments.
         expiry_text = st.session_state.get("auth_expires_at")
-        valid_login = bool(st.session_state.get("authenticated", False))
         try:
-            expiry = datetime.fromisoformat(expiry_text) if isinstance(expiry_text, str) else None
-            if expiry is None or datetime.now() >= expiry:
-                valid_login = False
-        except (ValueError, TypeError):
-            valid_login = False
-        if not valid_login:
+            valid = (st.session_state.get("authenticated") is True and
+                     isinstance(expiry_text, str) and
+                     datetime.now() < datetime.fromisoformat(expiry_text))
+        except (ValueError, TypeError, OverflowError):
+            valid = False
+        if not valid:
             st.session_state["authenticated"] = False
             st.session_state.pop("auth_expires_at", None)
             st.rerun(scope="app")
-        today = datetime.now(IST).date()
-        try:
-            info = service_account_info()
-            sheets = load_three_sheets(SHEET_ID,json.dumps(info,sort_keys=True),2)
-            results={tab:compute_forms(sheets[tab],year,today) for tab,year in TABS.items()}
-            state_counts = {
-                tab: {"asof": compute_states(sheets[tab], year, today),
-                      "overall": compute_states(sheets[tab], year, today, overall=True) if tab != "2027_29" else {}}
-                for tab, year in TABS.items()
-            }
-        except Exception as exc:
-            st.error(f"Google Sheets connection / calculation error: {exc}")
-            st.stop()
-        st.markdown(render_report(results,today,state_counts),unsafe_allow_html=True)
+        display_dashboard()
     live_report()
 else:
-    today = datetime.now(IST).date()
-    try:
-        sheets = load_three_sheets(SHEET_ID,json.dumps(service_account_info(),sort_keys=True),2)
-        results={tab:compute_forms(sheets[tab],year,today) for tab,year in TABS.items()}
-        state_counts = {
-            tab: {"asof": compute_states(sheets[tab], year, today),
-                  "overall": compute_states(sheets[tab], year, today, overall=True) if tab != "2027_29" else {}}
-            for tab, year in TABS.items()
-        }
-        st.markdown(render_report(results,today,state_counts),unsafe_allow_html=True)
-    except Exception as exc:
-        st.error(str(exc))
+    display_dashboard()

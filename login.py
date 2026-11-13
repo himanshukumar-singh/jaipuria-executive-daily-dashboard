@@ -154,7 +154,11 @@ def _render_form_css() -> None:
 
 
 def _auth_config() -> tuple[str, str]:
-    if "dashboard_auth" not in st.secrets:
+    try:
+        configured = "dashboard_auth" in st.secrets
+    except Exception:
+        configured = False
+    if not configured:
         st.error("Dashboard login is not configured. Add [dashboard_auth] in Streamlit Secrets.")
         st.stop()
 
@@ -169,6 +173,7 @@ def _auth_config() -> tuple[str, str]:
 
 
 def require_login(session_hours: int = 4) -> None:
+    """Authenticate before importing dashboard data, removing the login UI immediately on success."""
     _hide_streamlit_chrome()
 
     expires_at = st.session_state.get("auth_expires_at")
@@ -179,35 +184,50 @@ def require_login(session_hours: int = 4) -> None:
             expiry = datetime.fromisoformat(expires_at)
             if datetime.now() < expiry:
                 return
-        except Exception:
+        except (ValueError, TypeError):
             pass
 
     st.session_state["authenticated"] = False
     st.session_state.pop("auth_expires_at", None)
 
-    _render_form_css()
-    _render_login_branding()
+    # All visible login elements live in one replaceable container. On a
+    # successful login it is removed before the dashboard renders, avoiding
+    # the ghosted/disabled login form during an expensive initial Sheets fetch.
+    login_host = st.empty()
+    with login_host.container():
+        _render_form_css()
+        _render_login_branding()
+        expected_username, expected_password = _auth_config()
+        submitted, entered_username, entered_password = _render_login_form()
 
-    expected_username, expected_password = _auth_config()
+        if submitted:
+            username_ok = compare_digest(
+                entered_username.strip().encode("utf-8"),
+                expected_username.encode("utf-8"),
+            )
+            password_ok = compare_digest(
+                entered_password.encode("utf-8"),
+                expected_password.encode("utf-8"),
+            )
+            if username_ok and password_ok:
+                st.session_state["authenticated"] = True
+                st.session_state["auth_expires_at"] = (
+                    datetime.now() + timedelta(hours=session_hours)
+                ).isoformat()
+            else:
+                st.error("Incorrect username or password. Please try again.")
 
-    submitted, entered_username, entered_password = _render_login_form()
+        if not st.session_state["authenticated"]:
+            st.markdown(
+                '<div class="jk-login-wrap"><div class="jk-foot">Jaipuria Institute of Management · Authorized access only</div></div>',
+                unsafe_allow_html=True,
+            )
 
-    if submitted:
-        username_ok = compare_digest(entered_username.strip().encode("utf-8"), expected_username.encode("utf-8"))
-        password_ok = compare_digest(entered_password.encode("utf-8"), expected_password.encode("utf-8"))
-        if username_ok and password_ok:
-            st.session_state["authenticated"] = True
-            st.session_state["auth_expires_at"] = (datetime.now() + timedelta(hours=session_hours)).isoformat()
-            # Do not mutate login_username/login_password here: Streamlit widgets
-            # cannot have their state changed after instantiation in the same run.
-            st.rerun()
-        else:
-            st.error("Username or password does not match the values in .streamlit/secrets.toml. Please check the login details and try again.")
-
-    st.markdown(
-        '<div class="jk-login-wrap"><div class="jk-foot">Jaipuria Institute of Management · Authorized access only</div></div>',
-        unsafe_allow_html=True,
-    )
+    if st.session_state["authenticated"]:
+        # No st.rerun: fall through to the authenticated dashboard in the SAME
+        # server script run. This removes the extra full rerun on login.
+        login_host.empty()
+        return
     st.stop()
 
 
