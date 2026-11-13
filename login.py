@@ -49,6 +49,7 @@ def _render_login_branding() -> None:
                 height: auto;
                 display:block;
                 margin:0 auto;
+                transform: translateX(-16px);
             }
             .jk-title {
                 margin: 0.05rem 0 0.05rem 0;
@@ -80,7 +81,7 @@ def _render_login_branding() -> None:
             }
             @media (max-width: 768px) {
                 .jk-title {font-size: 2.15rem;}
-                .jk-logo-wrap img {width: 290px;}
+                .jk-logo-wrap img {width: 290px; transform: translateX(-8px);}
                 .jk-card {padding: 0.85rem 0.85rem 0.9rem 0.85rem;}
             }
         </style>
@@ -96,7 +97,7 @@ def _render_login_branding() -> None:
     )
 
 
-def _render_login_form() -> tuple[bool, str, str]:
+def _render_login_form() -> tuple[bool, str, str, object]:
     # Use real Streamlit columns: HTML wrappers cannot enclose a separate
     # Streamlit widget, and previously created an empty white bar.
     _, middle, _ = st.columns([1, 1.08, 1], gap="small")
@@ -109,13 +110,33 @@ def _render_login_form() -> tuple[bool, str, str]:
                 "Password", key="login_password", type="password", placeholder="Enter password"
             )
             submitted = st.form_submit_button("Log in", use_container_width=True)
-    return submitted, username, password
+        # Feedback stays aligned to the form instead of spanning the whole page.
+        feedback = st.empty()
+    return submitted, username, password, feedback
 
 
 def _render_form_css() -> None:
     st.markdown(
         """
         <style>
+            /* Login-only, understated multicolour ambient background. */
+            .stApp {
+                background: linear-gradient(
+                    125deg,
+                    #faf7fd 0%, #f5f0fa 22%, #f3f8ff 46%,
+                    #fff8f0 70%, #f7f1fb 100%
+                ) !important;
+                background-size: 280% 280% !important;
+                animation: jkAmbientBackground 22s ease-in-out infinite !important;
+            }
+            @keyframes jkAmbientBackground {
+                0%   { background-position: 0% 45%; }
+                50%  { background-position: 100% 55%; }
+                100% { background-position: 0% 45%; }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .stApp { animation: none !important; background-position: center !important; }
+            }
             div[data-testid="stForm"] {
                 background: #ffffff !important;
                 border: 1px solid #ebdfee !important;
@@ -198,7 +219,7 @@ def require_login(session_hours: int = 4) -> None:
         _render_form_css()
         _render_login_branding()
         expected_username, expected_password = _auth_config()
-        submitted, entered_username, entered_password = _render_login_form()
+        submitted, entered_username, entered_password, feedback = _render_login_form()
 
         if submitted:
             username_ok = compare_digest(
@@ -215,7 +236,7 @@ def require_login(session_hours: int = 4) -> None:
                     datetime.now() + timedelta(hours=session_hours)
                 ).isoformat()
             else:
-                st.error("Incorrect username or password. Please try again.")
+                feedback.error("Invalid username or password. Please try again.", icon="🔒")
 
         if not st.session_state["authenticated"]:
             st.markdown(
