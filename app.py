@@ -75,7 +75,8 @@ def frame_from_rows(rows: list[list[str]], tab: str) -> pd.DataFrame:
     """Accept headers that are not necessarily in row 1."""
     aliases = {
         "prospectid":"id", "leadid":"id", "transactiondate":"date",
-        "preference1":"campus", "leadstage":"stage", "leadsubstage":"substage"
+        "preference1":"campus", "leadstage":"stage", "leadsubstage":"substage",
+        "correspondencestate":"state", "presentstate":"state"
     }
     if not rows:
         raise ValueError(f"{tab}: empty sheet")
@@ -94,10 +95,10 @@ def frame_from_rows(rows: list[list[str]], tab: str) -> pd.DataFrame:
             continue
         item={}
         for j,h in enumerate(headers):
-            if h in {"id","date","campus","stage","substage"} and h not in item:
+            if h in {"id","date","campus","stage","substage","state"} and h not in item:
                 item[h] = r[j] if j < len(r) else ""
         records.append(item)
-    return pd.DataFrame.from_records(records, columns=["id","date","campus","stage","substage"]).fillna("")
+    return pd.DataFrame.from_records(records, columns=["id","date","campus","stage","substage","state"]).fillna("")
 
 
 @st.cache_data(ttl=55, show_spinner=False)
@@ -165,11 +166,133 @@ def compute_forms(frame: pd.DataFrame, year: int, today: date) -> dict[str,int]:
     return {campus: int((df["campus"] == campus.upper()).sum()) for campus in CAMPUSES}
 
 
+# Top States counts use exactly the same eligible form logic as Total Forms:
+# qualifying stages, Transaction Date and one latest qualifying record per Prospect ID.
+STATE_ALIASES = {
+    "UTTAR PRADESH": "Uttar Pradesh", "UP": "Uttar Pradesh", "U P": "Uttar Pradesh",
+    "DELHI": "Delhi", "NEW DELHI": "Delhi", "DELHI NCR": "Delhi",
+    "MAHARASHTRA": "Maharashtra", "RAJASTHAN": "Rajasthan",
+    "MADHYA PRADESH": "Madhya Pradesh", "MP": "Madhya Pradesh",
+    "BIHAR": "Bihar", "HARYANA": "Haryana", "GUJARAT": "Gujarat",
+    "WEST BENGAL": "West Bengal", "KARNATAKA": "Karnataka",
+    "ORISSA": "Odisha", "ODISHA": "Odisha",
+    "TELENGANA": "Telangana", "TELANGANA": "Telangana",
+    "JAMMU AND KASHMIR": "Jammu and Kashmir", "JAMMU & KASHMIR": "Jammu and Kashmir",
+    "J&K": "Jammu and Kashmir", "UTTARANCHAL": "Uttarakhand",
+}
+
+
+def normalized_state(value: object) -> str:
+    raw = re.sub(r"\s+", " ", str(value or "").strip()).upper()
+    raw = raw.replace(".", "")
+    if raw in {"", "NAN", "NONE", "NULL", "NA", "N/A", "OTHER", "SELECT", "SELECT STATE"}:
+        return ""
+    return STATE_ALIASES.get(raw, raw.title())
+
+
+def compute_states(frame: pd.DataFrame, year: int, today: date, overall: bool = False) -> dict[str, int]:
+    """Deduplicate by prospect exactly as Total Forms; count by Correspondence State.
+
+    As-on-date: cutoff matches Total Forms' year alignment.
+    Overall: count all historical qualifying transactions in that admission cycle.
+    """
+    df = frame.copy()
+    df["date"] = parse_dates(df["date"])
+    df = df[df["date"].notna()].copy()
+    if not overall:
+        import calendar
+        calendar_year = year + (1 if today.month <= 8 else 0)
+        cutoff = pd.Timestamp(date(calendar_year, today.month, min(today.day, calendar.monthrange(calendar_year, today.month)[1])))
+        df = df[df["date"] <= cutoff].copy()
+    df["id"] = df["id"].astype(str).str.strip()
+    df["stage"] = df["stage"].astype(str).str.strip().str.upper().str.replace(r"\s+", " ", regex=True)
+    df = df[df["id"].ne("") & df["stage"].isin(FORM_STAGES)]
+    df = df.sort_values("date", kind="stable").drop_duplicates("id", keep="last")
+    # Match Total Forms: only the four reported campuses belong to the report.
+    df["campus"] = df["campus"].astype(str).str.strip().str.upper()
+    df = df[df["campus"].isin({campus.upper() for campus in CAMPUSES})]
+    counts = df["state"].map(normalized_state)
+    return {str(k): int(v) for k, v in counts[counts.ne("")].value_counts().items()}
+
+
+def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
+                      results: dict[str, dict[str, int]]) -> str:
+    """One compact top-10 table and one side insights card (no mock data)."""
+    current = state_counts["2027_29"]["asof"]
+    # Rank by current cycle; deterministic alphabetical tie breaker.
+    leaders = sorted(current, key=lambda name: (-current[name], name))[:10]
+    asof_tabs = ("2027_29", "2026_28", "2025_27")
+    overall_tabs = ("2026_28", "2025_27")
+    tr = []
+    for pos, state in enumerate(leaders, 1):
+        cells = [state_counts[tab]["asof"].get(state, 0) for tab in asof_tabs]
+        cells += [state_counts[tab]["overall"].get(state, 0) for tab in overall_tabs]
+        tr.append("<tr><td class='rank-cell'><span class='rank-bubble'>" + str(pos) +
+                  "</span></td><td class='state-label'>" + escape(state) +
+                  "</td>" + "".join(f"<td>{number(v)}</td>" for v in cells) + "</tr>")
+    if not tr:
+        tr = ["<tr><td colspan='7'>No state-wise qualifying forms found</td></tr>"]
+    all_totals = [sum(state_counts[tab]["asof"].get(name,0) for name in leaders) for tab in asof_tabs]
+    all_totals += [sum(state_counts[tab]["overall"].get(name,0) for name in leaders) for tab in overall_tabs]
+    total_row = ("<tr class='state-total'><td colspan='2'>Top 10 Total</td>" +
+                 "".join(f"<td>{number(v)}</td>" for v in all_totals) + "</tr>")
+    current_total = sum(results["2027_29"].values())
+    previous_total = sum(results["2026_28"].values())
+    older_total = sum(results["2025_27"].values())
+    top_name = leaders[0] if leaders else "—"
+    top_count = current.get(top_name, 0)
+    top_three = leaders[:3]
+    top_three_count = sum(current[name] for name in top_three)
+    top_three_share = (top_three_count / current_total * 100) if current_total else 0
+    top_ten_count = all_totals[0]
+    top_ten_share = (top_ten_count / current_total * 100) if current_total else 0
+    top_three_labels = ", ".join(top_three) if top_three else "—"
+    # Overall may include transactions dated later than the current matching cutoff;
+    # these represent complete historical cycle totals, not the current as-on-date.
+    return f"""
+    <div class='state-insights-grid'>
+      <section class='states-card'>
+        <div class='states-heading'><span class='states-heading-icon'>▥</span> Top 10 States – Total Forms</div>
+        <div class='states-scroll'><table class='states-table'>
+          <thead>
+            <tr class='group-head'><th rowspan='2'>Rank</th><th rowspan='2'>State</th>
+              <th colspan='3'>As on Date</th><th colspan='2'>Overall</th></tr>
+            <tr class='year-head'><th>2027–29</th><th>2026–28</th><th>2025–27</th>
+              <th>2026–28</th><th>2025–27</th></tr>
+          </thead>
+          <tbody>{''.join(tr)}{total_row}</tbody>
+        </table></div>
+        <div class='states-footnote'>Ranked by 2027–29 as-on-date forms · Correspondence State · Unique Prospect IDs</div>
+      </section>
+      <aside class='insights-card'>
+        <div class='insights-heading'><span>✦</span> Key Insights</div>
+        <div class='insights-inner'>
+          <div class='insight-item'><span class='insight-icon'>▤</span><div>
+            <strong>Total Forms | As on Date</strong>
+            <p><b>{number(current_total)}</b> in 2027–29 vs {number(previous_total)} in 2026–28 and {number(older_total)} in 2025–27</p>
+          </div></div>
+          <div class='insight-item'><span class='insight-icon'>↗</span><div>
+            <strong>Top State | 2027–29</strong>
+            <p>{escape(top_name)} with <b>{number(top_count)}</b> forms</p>
+          </div></div>
+          <div class='insight-item'><span class='insight-icon'>★</span><div>
+            <strong>Top 3 States | 2027–29</strong>
+            <p>{escape(top_three_labels)}: <b>{number(top_three_count)}</b> forms ({top_three_share:.1f}% of all campus forms)</p>
+          </div></div>
+          <div class='insight-item'><span class='insight-icon'>◉</span><div>
+            <strong>Top 10 States | 2027–29</strong>
+            <p><b>{number(top_ten_count)}</b> forms ({top_ten_share:.1f}% of all campus forms)</p>
+          </div></div>
+        </div>
+      </aside>
+    </div>"""
+
+
 def number(n:int)->str:
     return f"{n:,}"
 
 
-def render_report(results:dict[str,dict[str,int]], today:date)->str:
+def render_report(results:dict[str,dict[str,int]], today:date, state_counts:dict[str,dict[str,dict[str,int]]])->str:
     headers = list(TABS)
     rows = ""
     for campus in CAMPUSES:
@@ -177,6 +300,7 @@ def render_report(results:dict[str,dict[str,int]], today:date)->str:
         rows+=f"<tr><td>{escape(campus)}</td>{cells}</tr>"
     totals=[sum(results[tab].values()) for tab in headers]
     rows+="<tr class='total-row'><td>Total</td>"+"".join(f"<td>{number(n)}</td>" for n in totals)+"</tr>"
+    states_panel = state_report_html(state_counts, results)
     display_date=today.strftime("%a, %d %b %Y")
     date_caption=escape(display_date)
     return f"""
@@ -193,6 +317,7 @@ def render_report(results:dict[str,dict[str,int]], today:date)->str:
           <tbody>{rows}</tbody>
         </table></div>
       </section>
+      {states_panel}
       <div class="brand-footer"></div>
     </div>"""
 
@@ -236,6 +361,36 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 .form-table tr.total-row td {{background:#ffe3c6;color:#411159;font-weight:850;}}
 .brand-footer {{margin-top:1.2%;height:clamp(35px,4vw,95px);background-image:url('data:image/jpeg;base64,{FOOTER_IMAGE}');background-size:100% 100%;}}
 @media(max-width:850px) {{.brand-header {{height:82px}}.branding-image {{margin-right:175px;background-size:100% 100%}}.date-pill {{width:175px;height:52%;top:27%;padding:0 4px 0 18px}}.date-orange-accent {{left:-13px;width:31px}}.date-content {{gap:6px}}.date-calendar {{font-size:19px}}.date-top {{font-size:11px}}.date-bottom {{font-size:10px}}.form-card {{margin:12px 10px 0}}.form-table {{min-width:560px;font-size:17px}} .section-title {{gap:0}}}}
+
+/* ADDITIVE STYLING: original header, Total Forms and footer remain unchanged. */
+.state-insights-grid {{display:grid;grid-template-columns:minmax(0,2.45fr) minmax(295px,1fr);gap:1.15%;margin:1.15% 3.4% 0;align-items:stretch;}}
+.states-card,.insights-card {{border:1.3px solid #7a398b;border-radius:16px;overflow:hidden;box-shadow:0 5px 15px #49165c12;background:#fff;min-width:0;}}
+.states-heading,.insights-heading {{position:relative;background:linear-gradient(100deg,#4c0d60,#5d176e);color:white;font-size:clamp(18px,1.55vw,28px);font-weight:800;min-height:45px;display:flex;align-items:center;padding:7px 19px;box-sizing:border-box;}}
+.states-heading:after,.insights-heading:after {{content:"";position:absolute;right:0;top:0;width:8%;height:100%;background:#ff9100;border-radius:0 0 0 100%;}}
+.states-heading-icon {{color:#ff9500;font-size:1.2em;margin-right:12px;}}
+.states-scroll {{overflow-x:auto;}}
+.states-table {{width:100%;border-collapse:collapse;table-layout:fixed;font-size:clamp(12px,1.01vw,19px);font-variant-numeric:tabular-nums;}}
+.states-table th,.states-table td {{border:1px solid #d6ccdb;text-align:center;padding:clamp(5px,.40vw,9px) 5px;line-height:1.15;}}
+.states-table thead th {{color:#451159;font-weight:800;}}
+.states-table .group-head th {{background:#ffe7ce;font-size:1.01em;}}
+.states-table .group-head th:nth-child(-n+2) {{background:#e7d7f8;}}
+.states-table .year-head th {{background:#fff0de;}}
+.states-table th:nth-child(1),.states-table td:nth-child(1) {{width:8%;}}
+.states-table .state-label {{text-align:left;padding-left:12px;white-space:nowrap;width:26%;}}
+.rank-bubble {{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:#ffdcaa;color:#4b115b;font-weight:800;min-width:26px;height:26px;}}
+.states-table tr:nth-child(even):not(.state-total) {{background:#fbf9fd;}}
+.states-table .state-total td {{background:#ffe8cb;color:#46105d;font-weight:850;}}
+.states-footnote {{font-size:clamp(10px,.72vw,13px);color:#655b68;padding:6px 12px 8px;}}
+.insights-heading {{gap:8px;}}
+.insights-heading span {{color:#ff9b16;}}
+.insights-inner {{padding:2% 6%;}}
+.insight-item {{display:flex;gap:15px;padding:clamp(12px,1.1vw,22px) 0;border-bottom:1px solid #eadfee;align-items:flex-start;}}
+.insight-item:last-child {{border-bottom:0;}}
+.insight-icon {{font-size:clamp(20px,1.75vw,30px);flex:none;display:inline-flex;align-items:center;justify-content:center;width:clamp(39px,3.5vw,62px);height:clamp(39px,3.5vw,62px);border-radius:50%;background:#f5edfb;color:#5b176d;}}
+.insight-item strong {{font-size:clamp(13px,1vw,19px);color:#431052;display:block;margin-bottom:5px;}}
+.insight-item p {{font-size:clamp(12px,.94vw,18px);margin:0;line-height:1.35;color:#29232c;}}
+.insight-item b {{color:#501264;}}
+@media(max-width:980px) {{.state-insights-grid {{grid-template-columns:1fr;gap:15px;}}.states-table {{min-width:650px;}}}}
 </style>""",unsafe_allow_html=True)
 
 # Run a full dashboard refresh automatically every 60 s, even after midnight.
@@ -261,16 +416,26 @@ if fragment is not None:
             info = service_account_info()
             sheets = load_three_sheets(SHEET_ID,json.dumps(info,sort_keys=True))
             results={tab:compute_forms(sheets[tab],year,today) for tab,year in TABS.items()}
+            state_counts = {
+                tab: {"asof": compute_states(sheets[tab], year, today),
+                      "overall": compute_states(sheets[tab], year, today, overall=True) if tab != "2027_29" else {}}
+                for tab, year in TABS.items()
+            }
         except Exception as exc:
             st.error(f"Google Sheets connection / calculation error: {exc}")
             st.stop()
-        st.markdown(render_report(results,today),unsafe_allow_html=True)
+        st.markdown(render_report(results,today,state_counts),unsafe_allow_html=True)
     live_report()
 else:
     today = datetime.now(IST).date()
     try:
         sheets = load_three_sheets(SHEET_ID,json.dumps(service_account_info(),sort_keys=True))
         results={tab:compute_forms(sheets[tab],year,today) for tab,year in TABS.items()}
-        st.markdown(render_report(results,today),unsafe_allow_html=True)
+        state_counts = {
+            tab: {"asof": compute_states(sheets[tab], year, today),
+                  "overall": compute_states(sheets[tab], year, today, overall=True) if tab != "2027_29" else {}}
+            for tab, year in TABS.items()
+        }
+        st.markdown(render_report(results,today,state_counts),unsafe_allow_html=True)
     except Exception as exc:
         st.error(str(exc))
