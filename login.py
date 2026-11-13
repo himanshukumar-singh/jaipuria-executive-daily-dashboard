@@ -77,7 +77,7 @@ def _render_form_css() -> None:
     /* Heading and login form are aligned to the SAME right-hand column. */
     .jk-exec-title {
         width: 49%;
-        margin: 0 0 16px auto;
+        margin: -30px 0 11px auto;
         text-align:center;
         padding:0 8px;
     }
@@ -93,7 +93,7 @@ def _render_form_css() -> None:
     }
     .jk-exec-title .jk-title-glow {
         width: 54%;height:3px;
-        margin:18px auto 22px;
+        margin:12px auto 15px;
         border-radius:6px;
         background:linear-gradient(90deg,transparent,#ffcf6e,transparent);
         box-shadow:0 0 13px rgba(255,200,96,.65);
@@ -272,6 +272,10 @@ def require_login(session_hours: int = 4) -> None:
                 st.session_state["auth_expires_at"] = (
                     datetime.now() + timedelta(hours=session_hours)
                 ).isoformat()
+                # A clean rerun is essential: don't let login-only CSS/DOM
+                # persist into the authenticated page's first render.
+                login_host.empty()
+                st.rerun()
             else:
                 feedback.error("Invalid username or password. Please try again.", icon="🔒")
 
@@ -281,11 +285,7 @@ def require_login(session_hours: int = 4) -> None:
                 unsafe_allow_html=True,
             )
 
-    if st.session_state["authenticated"]:
-        # No st.rerun: fall through to the authenticated dashboard in the SAME
-        # server script run. This removes the extra full rerun on login.
-        login_host.empty()
-        return
+    # Invalid or no credentials: stop before any dashboard code executes.
     st.stop()
 
 
