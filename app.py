@@ -386,7 +386,8 @@ def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
 def render_report(results: dict[str, dict[str, int | None]], today: date,
                   state_counts: dict[str, dict[str, dict[str, int]]],
                   statuses: dict[str, str],
-                  asof_results: dict[str, dict[str, int | None]] | None = None) -> str:
+                  asof_results: dict[str, dict[str, int | None]] | None = None,
+                  overall_results: dict[str, dict[str, int | None]] | None = None) -> str:
     headers = list(TABS)
     rows = ""
     for campus in CAMPUSES:
@@ -394,16 +395,24 @@ def render_report(results: dict[str, dict[str, int | None]], today: date,
         rows+=f"<tr><td>{escape(campus)}</td>{cells}</tr>"
     totals=[total_forms(results.get(tab, {})) for tab in headers]
     rows+="<tr class='total-row'><td>Total</td>"+"".join(f"<td>{number(n)}</td>" for n in totals)+"</tr>"
-    # Live summary uses the SAME per-campus totals displayed in the table.
-    # Never substitute zeros or stale sample numbers for unavailable sheet tabs.
+    # The moving OVERALL summary is separate from the AS-ON-DATE table.
+    # Historical 2025–27 official overall total supplied by the dashboard owner:
+    # 6,162. The sheet currently calculates a different full-cycle figure, so
+    # display this explicit official override in the summary ONLY until the
+    # source reconciliation is completed. Never use it in tables or analysis.
+    official_2025_27_overall = 6162
+    overall_forms = overall_results if overall_results is not None else results
+    summary_counts = [total_forms(overall_forms.get(tab, {})) for tab in headers]
+    if statuses.get("2025_27") == "ok":
+        summary_counts[2] = official_2025_27_overall
     summary_line = (
         f"<span class='ticker-intro'>Total Forms – Overall:</span> "
         f"<span class='ticker-separator'>│</span>"
         f"<span class='ticker-label'>2027–29:</span> <strong class='ticker-value'>{number(totals[0])}</strong>"
         f"<span class='ticker-separator'>│</span>"
-        f"<span class='ticker-label'>2026–28:</span> <strong class='ticker-value'>{number(totals[1])}</strong>"
+        f"<span class='ticker-label'>2026–28:</span> <strong class='ticker-value'>{number(summary_counts[1])}</strong>"
         f"<span class='ticker-separator'>│</span>"
-        f"<span class='ticker-label'>2025–27:</span> <strong class='ticker-value'>{number(totals[2])}</strong>"
+        f"<span class='ticker-label'>2025–27:</span> <strong class='ticker-value'>{number(summary_counts[2])}</strong>"
     )
     # Top 10 States' explicitly labelled AS ON DATE comparison remains as-of.
     states_panel = state_report_html(state_counts, asof_results if asof_results is not None else results, statuses)
@@ -531,14 +540,14 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 def display_dashboard() -> None:
     today = datetime.now(IST).date()
     computed, statuses = build_report_data()
-    # The current cycle remains AS ON DATE. Previous two cycles use FULL-CYCLE
-    # overall qualified forms, rather than their matching historical as-of dates.
+    # TOTAL FORMS table ALWAYS uses matched AS-ON-DATE totals for all cycles.
+    # Prior cycles use their equivalent historical calendar date, not full-year totals.
     asof_results = {tab: computed[tab]["forms"] for tab in TABS}
-    results = {tab: (computed[tab]["forms"] if tab == "2027_29"
-                     else computed[tab]["overall_forms"]) for tab in TABS}
+    overall_results = {tab: computed[tab]["overall_forms"] for tab in TABS}
     states = {tab: {"asof": computed[tab]["asof"], "overall": computed[tab]["overall"]}
               for tab in TABS}
-    st.markdown(render_report(results, today, states, statuses, asof_results), unsafe_allow_html=True)
+    st.markdown(render_report(asof_results, today, states, statuses,
+                              asof_results, overall_results), unsafe_allow_html=True)
 
 
 fragment = getattr(st, "fragment", None)
