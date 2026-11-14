@@ -197,6 +197,53 @@ def parse_dates(series: pd.Series) -> pd.Series:
         return pd.Series(pd.NaT, index=raw.index, dtype="datetime64[ns]")
 
 
+def latest_current_transaction(frame: pd.DataFrame, today: date) -> str:
+    """Latest dated current-cycle campus row, preserving time when the sheet has it.
+
+    The source uses Transaction Date and PREFERENCE 1. This display helper
+    does not alter any existing AS-ON-DATE/OVERALL counting conditions.
+    Sheets date/times without a timezone are treated as already local IST.
+    """
+    if frame.empty or "date" not in frame or "campus" not in frame:
+        return "—"
+    valid = frame[frame["campus"].fillna("").astype(str).str.strip()
+                  .str.upper().str.replace(r"\s+", " ", regex=True)
+                  .isin(CAMPUS_UPPER)].copy()
+    if valid.empty:
+        return "—"
+    raw = valid["date"].fillna("").astype(str).str.strip()
+    serials = pd.to_numeric(raw, errors="coerce")
+    # Consistent with parse_dates(): day-first for displayed text, ISO separately.
+    parsed = pd.to_datetime(raw, format="mixed", dayfirst=True, errors="coerce")
+    iso = raw.str.match(r"^\d{4}[-/]\d{1,2}[-/]\d{1,2}")
+    if iso.any():
+        parsed.loc[iso] = pd.to_datetime(raw.loc[iso], errors="coerce")
+    serial_mask = serials.between(30000, 80000)
+    if serial_mask.any():
+        parsed.loc[serial_mask] = pd.to_datetime(
+            serials.loc[serial_mask], unit="D", origin="1899-12-30", errors="coerce"
+        )
+    # Avoid failing the report if one source cell uses an unsupported timezone.
+    try:
+        parsed = pd.to_datetime(parsed, errors="coerce")
+        if getattr(parsed.dt, "tz", None) is not None:
+            parsed = parsed.dt.tz_convert(IST).dt.tz_localize(None)
+        parsed = parsed[parsed.notna() & (parsed.dt.normalize() <= pd.Timestamp(today))]
+        if parsed.empty:
+            return "—"
+        latest = parsed.max()
+        # Do not invent 00:00 when a date-only cell has no stored time.
+        index = parsed[parsed == latest].index
+        source_value = raw.loc[index[0]]
+        contains_time = bool(re.search(r"(?:[ T]\d{1,2}:\d{2}|\d{1,2}:\d{2}\s*(?:AM|PM))", source_value, re.I))
+        numeric_value = pd.to_numeric(pd.Series([source_value]), errors="coerce").iloc[0]
+        if pd.notna(numeric_value) and 30000 <= numeric_value <= 80000:
+            contains_time = abs(float(numeric_value) - round(float(numeric_value))) > 1e-8
+        return latest.strftime("%d %b %Y, %I:%M %p") if contains_time else latest.strftime("%d %b %Y (TIME NOT IN SHEET)")
+    except (ValueError, TypeError, AttributeError, OverflowError):
+        return "—"
+
+
 STATE_ALIASES = {
     "UTTAR PRADESH": "Uttar Pradesh", "UP": "Uttar Pradesh", "U P": "Uttar Pradesh",
     "DELHI": "Delhi", "NEW DELHI": "Delhi", "DELHI NCR": "Delhi",
@@ -238,7 +285,7 @@ def count_cycle(frame: pd.DataFrame, start_year: int, today: date) -> dict:
     """
     empty_counts = {campus: 0 for campus in CAMPUSES}
     result = {"forms": empty_counts.copy(), "overall_forms": empty_counts.copy(),
-              "asof": {}, "overall": {}}
+              "asof": {}, "overall": {}, "latest_transaction": "—"}
     if frame.empty:
         return result
     df = frame.copy()
@@ -254,6 +301,8 @@ def count_cycle(frame: pd.DataFrame, start_year: int, today: date) -> dict:
     eligible = df[df["campus"].isin(CAMPUS_UPPER)].copy()
     if eligible.empty:
         return result
+    if start_year == 2026:
+        result["latest_transaction"] = latest_current_transaction(eligible, today)
     eligible["parsed_date"] = parse_dates(eligible["date"])
     cutoff = asof_cutoff(start_year, today)
     snapshots = {"overall": eligible,
@@ -276,7 +325,7 @@ def blank_cycle(status: str) -> dict:
     return {"status": status,
             "forms": {campus: None for campus in CAMPUSES},
             "overall_forms": {campus: None for campus in CAMPUSES},
-            "asof": {}, "overall": {}}
+            "asof": {}, "overall": {}, "latest_transaction": "—"}
 
 
 def build_report_data() -> tuple[dict[str, dict], dict[str, str]]:
@@ -355,13 +404,13 @@ def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
       <section class='states-card'>
         <div class='states-heading'><span class='states-heading-icon'>▥</span> Top 10 States – Total Forms</div>
         <div class='states-scroll'><table class='states-table'>
-          <thead><tr class='group-head'><th rowspan='2'>Rank</th><th rowspan='2'>State</th>
+          <thead><tr class='group-head'><th rowspan='2'>S. NO.</th><th rowspan='2'>State</th>
             <th colspan='3'>As on Date</th><th colspan='2'>Overall</th></tr>
           <tr class='year-head'><th>2027–29</th><th>2026–28</th><th>2025–27</th>
             <th>2026–28</th><th>2025–27</th></tr></thead>
           <tbody>{''.join(trs)}{total_row}</tbody>
         </table></div>
-        <div class='states-footnote'>Ranked by 2027–29 as-on-date forms · Correspondence State · Unique Prospect IDs</div>
+        <div class='states-footnote'>ORDERED BY 2027–29 AS-ON-DATE FORMS · CORRESPONDENCE STATE · APPLICATION ROWS</div>
       </section>
       <aside class='insights-card'>
         <div class='insights-heading'><span>✦</span> Key Insights</div>
@@ -391,7 +440,8 @@ def render_report(results: dict[str, dict[str, int | None]], today: date,
                   state_counts: dict[str, dict[str, dict[str, int]]],
                   statuses: dict[str, str],
                   asof_results: dict[str, dict[str, int | None]] | None = None,
-                  overall_results: dict[str, dict[str, int | None]] | None = None) -> str:
+                  overall_results: dict[str, dict[str, int | None]] | None = None,
+                  latest_transaction: str = "—") -> str:
     headers = list(TABS)
     rows = ""
     for campus in CAMPUSES:
@@ -413,6 +463,9 @@ def render_report(results: dict[str, dict[str, int | None]], today: date,
         f"<span class='ticker-label'>2026–28:</span> <strong class='ticker-value'>{number(summary_counts[1])}</strong>"
         f"<span class='ticker-separator'>│</span>"
         f"<span class='ticker-label'>2025–27:</span> <strong class='ticker-value'>{number(summary_counts[2])}</strong>"
+        f"<span class='ticker-separator'>│</span>"
+        f"<span class='ticker-label'>LATEST TRANSACTION (2027–29):</span> "
+        f"<strong class='ticker-value'>{escape(latest_transaction)}</strong>"
     )
     # Top 10 States' explicitly labelled AS ON DATE comparison remains as-of.
     states_panel = state_report_html(state_counts, asof_results if asof_results is not None else results, statuses)
@@ -500,6 +553,7 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 .form-table th {{background:#ffe0c2;color:#451159;font-weight:800;}}
 .form-table th:first-child {{background:#e9d6f9;width:22%;}}
 .form-table td:first-child {{text-align:left;padding-left:5.4%;}}
+.executive .form-table tbody tr td:first-child {{text-align:left!important;padding-left:clamp(14px,2.2vw,36px)!important;}}
 .form-table tr.total-row td {{background:#ffe3c6;color:#411159;font-weight:850;}}
 .brand-footer {{margin-top:1.2%;height:clamp(35px,4vw,95px);background-image:url('data:image/jpeg;base64,{FOOTER_IMAGE}');background-size:100% 100%;}}
 @media(max-width:850px) {{.brand-header {{height:clamp(58px,7.45vw,82px)}}.branding-image {{margin-right:0;background-size:100% 100%}}.date-pill {{right:.7%;width:12.9%;height:58%;top:28%;padding:0 2px}}.date-content {{gap:3px}}.date-calendar {{width:16px;height:16px}}.date-top {{font-size:9px}}.date-bottom {{font-size:8px;margin-top:2px}}.form-card {{margin:5px 10px 0}}.form-table {{min-width:560px;font-size:12px}} .section-title {{gap:0}}}}
@@ -547,7 +601,9 @@ def display_dashboard() -> None:
     states = {tab: {"asof": computed[tab]["asof"], "overall": computed[tab]["overall"]}
               for tab in TABS}
     st.markdown(render_report(asof_results, today, states, statuses,
-                              asof_results, overall_results), unsafe_allow_html=True)
+                              asof_results, overall_results,
+                              computed["2027_29"].get("latest_transaction", "—")),
+                unsafe_allow_html=True)
 
 
 fragment = getattr(st, "fragment", None)
