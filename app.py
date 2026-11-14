@@ -231,7 +231,7 @@ def count_cycle(frame: pd.DataFrame, start_year: int, today: date) -> dict:
     Prospect ID transaction per cycle, by Transaction Date and PREFERENCE 1.
     """
     empty_counts = {campus: 0 for campus in CAMPUSES}
-    result = {"forms": empty_counts.copy(), "asof": {}, "overall": {}}
+    result = {"forms": empty_counts.copy(), "overall_forms": empty_counts.copy(), "asof": {}, "overall": {}}
     if frame.empty:
         return result
     df = frame.copy()
@@ -258,9 +258,10 @@ def count_cycle(frame: pd.DataFrame, start_year: int, today: date) -> dict:
             continue
         dedup = subset.drop_duplicates("id", keep="last")
         dedup = dedup[dedup["campus"].isin(CAMPUS_UPPER)]
-        if mode == "asof":
+        if mode in ("asof", "overall"):
             by_campus = dedup["campus"].value_counts()
-            result["forms"] = {c: int(by_campus.get(c.upper(), 0)) for c in CAMPUSES}
+            target = "forms" if mode == "asof" else "overall_forms"
+            result[target] = {c: int(by_campus.get(c.upper(), 0)) for c in CAMPUSES}
         state_series = dedup["state"].map(normalized_state)
         result[mode] = {str(k): int(v) for k, v in state_series[state_series.ne("")].value_counts().items()}
     return result
@@ -270,6 +271,7 @@ def blank_cycle(status: str) -> dict:
     """Dash for unknown data, zeros only when source is valid with no matches."""
     return {"status": status,
             "forms": {campus: None for campus in CAMPUSES},
+            "overall_forms": {campus: None for campus in CAMPUSES},
             "asof": {}, "overall": {}}
 
 
@@ -383,7 +385,8 @@ def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
 
 def render_report(results: dict[str, dict[str, int | None]], today: date,
                   state_counts: dict[str, dict[str, dict[str, int]]],
-                  statuses: dict[str, str]) -> str:
+                  statuses: dict[str, str],
+                  asof_results: dict[str, dict[str, int | None]] | None = None) -> str:
     headers = list(TABS)
     rows = ""
     for campus in CAMPUSES:
@@ -402,7 +405,8 @@ def render_report(results: dict[str, dict[str, int | None]], today: date,
         f"<span class='ticker-separator'>│</span>"
         f"<span class='ticker-label'>2025–27:</span> <strong class='ticker-value'>{number(totals[2])}</strong>"
     )
-    states_panel = state_report_html(state_counts, results, statuses)
+    # Top 10 States' explicitly labelled AS ON DATE comparison remains as-of.
+    states_panel = state_report_html(state_counts, asof_results if asof_results is not None else results, statuses)
     display_date=today.strftime("%a, %d %b %Y")
     date_caption=escape(display_date)
     affected = [tab.replace("_", "–") for tab in headers if statuses.get(tab) != "ok"]
@@ -439,7 +443,7 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 [data-testid="stAppViewContainer"] {{background:white!important}}
 .block-container {{max-width:100%!important;padding:0!important}}
 [data-testid="stVerticalBlock"] {{gap:0!important}}
-.executive {{width:100%;background:white;color:#16111b;font-family:Arial,Helvetica,sans-serif;}}
+.executive {{width:100%;background:white;color:#16111b;font-family:Arial,Helvetica,sans-serif;text-transform:uppercase;}}
 .source-note {{margin:11px 3.4% -12px;background:#f6f2fa;color:#53355e;padding:8px 13px;border-radius:8px;font-size:13px;}}
 .brand-header {{height:clamp(78px,7.45vw,142px);display:flex;width:100%;align-items:stretch;overflow:hidden;position:relative;}}
 .brand-header::after {{display:none;}}
@@ -527,10 +531,14 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 def display_dashboard() -> None:
     today = datetime.now(IST).date()
     computed, statuses = build_report_data()
-    results = {tab: computed[tab]["forms"] for tab in TABS}
+    # The current cycle remains AS ON DATE. Previous two cycles use FULL-CYCLE
+    # overall qualified forms, rather than their matching historical as-of dates.
+    asof_results = {tab: computed[tab]["forms"] for tab in TABS}
+    results = {tab: (computed[tab]["forms"] if tab == "2027_29"
+                     else computed[tab]["overall_forms"]) for tab in TABS}
     states = {tab: {"asof": computed[tab]["asof"], "overall": computed[tab]["overall"]}
               for tab in TABS}
-    st.markdown(render_report(results, today, states, statuses), unsafe_allow_html=True)
+    st.markdown(render_report(results, today, states, statuses, asof_results), unsafe_allow_html=True)
 
 
 fragment = getattr(st, "fragment", None)
