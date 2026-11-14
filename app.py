@@ -391,6 +391,19 @@ def render_report(results: dict[str, dict[str, int | None]], today: date,
         rows+=f"<tr><td>{escape(campus)}</td>{cells}</tr>"
     totals=[total_forms(results.get(tab, {})) for tab in headers]
     rows+="<tr class='total-row'><td>Total</td>"+"".join(f"<td>{number(n)}</td>" for n in totals)+"</tr>"
+    # Live summary uses the SAME per-campus totals displayed in the table.
+    # Never substitute zeros or stale sample numbers for unavailable sheet tabs.
+    grand_total = sum(totals) if all(v is not None for v in totals) else None
+    summary_line = (
+        f"<span class='ticker-intro'>Total Forms – Overall:</span> "
+        f"<strong class='ticker-value'>{number(grand_total)}</strong>"
+        f"<span class='ticker-separator'>│</span>"
+        f"<span class='ticker-label'>2027–29:</span> <strong class='ticker-value'>{number(totals[0])}</strong>"
+        f"<span class='ticker-separator'>│</span>"
+        f"<span class='ticker-label'>2026–28:</span> <strong class='ticker-value'>{number(totals[1])}</strong>"
+        f"<span class='ticker-separator'>│</span>"
+        f"<span class='ticker-label'>2025–27:</span> <strong class='ticker-value'>{number(totals[2])}</strong>"
+    )
     states_panel = state_report_html(state_counts, results, statuses)
     display_date=today.strftime("%a, %d %b %Y")
     date_caption=escape(display_date)
@@ -404,8 +417,15 @@ def render_report(results: dict[str, dict[str, int | None]], today: date,
         <div class="branding-image"></div>
         <div class="date-pill"><span class="date-orange-accent"></span><div class="date-content"><span class="date-calendar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/><path d="M8 14h2M14 14h2M8 18h2M14 18h2"/></svg></span><div><div class="date-top">Daily Report</div><div class="date-bottom">{date_caption}</div></div></div></div>
       </div>
-      <div class="orange-divider"></div>
+      <!-- Thin multicolor strip: the light sweep restarts at the left each cycle. -->
+      <div class="executive-rainbow-line" aria-hidden="true">
+        <span class="executive-rainbow-sweep"></span>
+      </div>
       {note}
+      <!-- Single line, entire content continuously travels left to right. -->
+      <div class="executive-ticker" aria-label="Total Forms overall and year-wise comparison">
+        <div class="executive-ticker-track">{summary_line}</div>
+      </div>
       <section class="form-card">
         <div class="section-title"><span class="title-text">Total Forms</span></div>
         <div class="form-table-scroll"><table class="form-table">
@@ -440,7 +460,20 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 .date-top {{font-size:clamp(11px,1vw,18px);line-height:1.15;}}
 .date-bottom {{font-size:clamp(10px,.79vw,15px);margin-top:5px;line-height:1.15;}}
 /* The extra animated separator has been removed; the orange line touches the header image. */
-.form-card {{margin:clamp(26px,2.8vw,54px) 3.4% 0;border:1.4px solid #74338a;border-radius:20px;overflow:hidden;box-shadow:0 5px 17px #49165c14;}}
+/* Animated multi-color divider: baseline remains visible, bright highlight sweeps LTR. */
+.executive-rainbow-line {{position:relative;width:97.5%;height:5px;margin:0 auto 0;overflow:hidden;border-radius:999px;background:linear-gradient(90deg,#6b138e 0%,#d426c8 19%,#f28b15 42%,#17b879 62%,#11bade 82%,#50106c 100%);box-shadow:0 1px 5px #62167930;}}
+.executive-rainbow-sweep {{position:absolute;top:0;bottom:0;left:0;width:27%;border-radius:inherit;background:linear-gradient(90deg,transparent 0%,#ffffff85 32%,#ffffff 50%,#ffffff90 66%,transparent 100%);transform:translateX(-100%);animation:executiveLightLTR 4.5s linear infinite;}}
+@keyframes executiveLightLTR {{0% {{left:0;transform:translateX(-100%);}}100% {{left:100%;transform:translateX(0);}}}}
+/* A single unboxed, dynamic summary text that goes ALL the way across the page. */
+.executive-ticker {{width:100%;height:clamp(51px,4.4vw,75px);position:relative;overflow:hidden;display:block;background:white;white-space:nowrap;}}
+.executive-ticker-track {{position:absolute;left:0;top:50%;display:inline-flex;align-items:center;gap:clamp(8px,.8vw,15px);width:max-content;white-space:nowrap;transform:translate(-100%,-50%);animation:executiveTotalsLTR 19s linear infinite;font-family:Arial,Helvetica,sans-serif;font-size:clamp(16px,1.37vw,24px);font-weight:750;color:#2c183e;font-variant-numeric:tabular-nums;}}
+@keyframes executiveTotalsLTR {{0% {{left:0;transform:translate(-100%,-50%);}}100% {{left:100%;transform:translate(0,-50%);}}}}
+.ticker-intro,.ticker-label {{color:#251831;font-weight:750;}}
+.ticker-value {{font-size:1.35em;font-weight:850;color:#501066;}}
+.ticker-separator {{color:#602074;font-size:1.25em;font-weight:400;padding:0 clamp(5px,.7vw,14px);}}
+@media(max-width:850px) {{.executive-rainbow-line {{height:4px;}}.executive-ticker {{height:45px;}}.executive-ticker-track {{font-size:15px;gap:6px;animation-duration:19s;}}}}
+@media(prefers-reduced-motion:reduce) {{.executive-rainbow-sweep {{animation:none;left:35%;transform:none;opacity:.35;}}.executive-ticker-track {{animation:none;position:relative;left:auto;top:auto;transform:none;padding:12px 10px;}}.executive-ticker {{overflow-x:auto;}}}}
+.form-card {{margin:clamp(12px,1.3vw,22px) 3.4% 0;border:1.4px solid #74338a;border-radius:20px;overflow:hidden;box-shadow:0 5px 17px #49165c14;}}
 .section-title {{position:relative;background:linear-gradient(90deg,#501067,#49115a);color:white;font-size:clamp(20px,1.55vw,26px);font-weight:800;height:clamp(48px,3.55vw,76px);display:flex;align-items:center;justify-content:center;padding:0 3.3%;text-align:center;}}
 .section-title:after {{content:"";position:absolute;right:12px;top:0;width:42px;height:3px;background:#e99a2a;border:0;border-radius:0;}}
 .title-text {{display:block;width:100%;text-align:center;padding:0 7%;box-sizing:border-box;}}
