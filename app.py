@@ -395,16 +395,11 @@ def render_report(results: dict[str, dict[str, int | None]], today: date,
         rows+=f"<tr><td>{escape(campus)}</td>{cells}</tr>"
     totals=[total_forms(results.get(tab, {})) for tab in headers]
     rows+="<tr class='total-row'><td>Total</td>"+"".join(f"<td>{number(n)}</td>" for n in totals)+"</tr>"
-    # The moving OVERALL summary is separate from the AS-ON-DATE table.
-    # Historical 2025–27 official overall total supplied by the dashboard owner:
-    # 6,162. The sheet currently calculates a different full-cycle figure, so
-    # display this explicit official override in the summary ONLY until the
-    # source reconciliation is completed. Never use it in tables or analysis.
-    official_2025_27_overall = 6162
+    # Live Google Sheets: table = equivalent AS-ON-DATE counts for all years;
+    # ticker = current-year AS-ON-DATE plus both prior full-cycle OVERALL totals.
+    # No manually entered / hardcoded historical counts.
     overall_forms = overall_results if overall_results is not None else results
     summary_counts = [total_forms(overall_forms.get(tab, {})) for tab in headers]
-    if statuses.get("2025_27") == "ok":
-        summary_counts[2] = official_2025_27_overall
     summary_line = (
         f"<span class='ticker-intro'>Total Forms – Overall:</span> "
         f"<span class='ticker-separator'>│</span>"
