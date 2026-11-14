@@ -530,19 +530,29 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 @keyframes oneHeaderRainbowLTR {{0% {{background-position:100% 0;}}100% {{background-position:0% 0;}}}}
 @keyframes oneHeaderSparkLTR {{0% {{left:-24%;}}100% {{left:100%;}}}}
 /* Compact unboxed headline, moving the full text from outside left to outside right. */
-.executive-ticker {{width:100%;height:clamp(38px,3vw,48px);position:relative;overflow:hidden;background:#fff;white-space:nowrap;}}
-.executive-ticker-track {{position:absolute;left:0;top:50%;display:inline-flex;align-items:center;gap:clamp(5px,.65vw,10px);width:max-content;
+.executive-ticker {{width:100%;height:clamp(29px,2.1vw,36px);position:relative;overflow:hidden;background:#fff;white-space:nowrap;}}
+.executive-ticker-track {{position:absolute;left:0;top:50%;display:inline-flex;align-items:center;gap:clamp(3px,.4vw,7px);width:max-content;
   white-space:nowrap;transform:translate(-100%,-50%);animation:executiveTotalsLTR 15s linear infinite;
-  font-family:Arial,Helvetica,sans-serif;font-size:clamp(13px,.93vw,16px);font-weight:750;line-height:1.1;}}
+  font-family:Arial,Helvetica,sans-serif;font-size:clamp(12px,.85vw,15px);font-weight:750;line-height:1;}}
 @keyframes executiveTotalsLTR {{0% {{left:0;transform:translate(-100%,-50%);}}100% {{left:100%;transform:translate(0,-50%);}}}}
-.ticker-intro,.ticker-label {{color:#251831;font-weight:750;}}
-.ticker-value {{font-size:1.15em;font-weight:850;color:#501066;}}
-.ticker-separator {{color:#602074;font-size:1.08em;font-weight:400;padding:0 clamp(3px,.45vw,9px);}}
-@media(max-width:850px) {{.executive-ticker {{height:35px;}}.executive-ticker-track {{font-size:12px;gap:4px;animation-duration:15s;}}}}
+/* Flowing multicolour gradient moves THROUGH each letter, while the complete text moves left to right. */
+.ticker-intro,.ticker-label,.ticker-value {{
+  display:inline-block;
+  font-weight:800;
+  background-image:linear-gradient(105deg,#501067 0%,#992bba 16%,#e03b95 31%,#d16f19 46%,#198d64 65%,#1883b3 82%,#501067 100%);
+  background-size:330% 100%;background-position:0% 50%;
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#501067;
+  animation:tickerLetterColours 6.2s linear infinite;
+}}
+.ticker-value {{font-size:1.12em;font-weight:900;animation-duration:4.8s;}}
+.ticker-separator {{color:#7b398b;font-size:1.05em;font-weight:500;padding:0 clamp(2px,.27vw,5px);}}
+@keyframes tickerLetterColours {{0% {{background-position:0% 50%;}}100% {{background-position:100% 50%;}}}}
+@media(max-width:850px) {{.executive-ticker {{height:29px;}}.executive-ticker-track {{font-size:12px;gap:3px;animation-duration:15s;}}}}
 @media(prefers-reduced-motion:reduce) {{.brand-header::after,.brand-header::before {{animation:none;}}.brand-header::before {{display:none;}}
-  .executive-ticker-track {{animation:none;position:relative;left:auto;top:auto;transform:none;padding:8px 10px;}}
+  .executive-ticker-track {{animation:none;position:relative;left:auto;top:auto;transform:none;padding:6px 10px;}}
+  .ticker-intro,.ticker-label,.ticker-value {{animation:none;}}
   .executive-ticker {{overflow-x:auto;}}}}
-.form-card {{margin:clamp(3px,.35vw,7px) 3.4% 0;border:1.4px solid #74338a;border-radius:20px;overflow:hidden;box-shadow:0 5px 17px #49165c14;}}
+.form-card {{margin:0 3.4% 0;border:1.4px solid #74338a;border-radius:20px;overflow:hidden;box-shadow:0 5px 17px #49165c14;}}
 .section-title {{position:relative;background:linear-gradient(90deg,#501067,#49115a);color:white;font-size:clamp(17px,1.22vw,22px);font-weight:800;height:clamp(38px,2.75vw,52px);display:flex;align-items:center;justify-content:center;padding:0 3.3%;text-align:center;}}
 .section-title:after {{content:"";position:absolute;right:12px;top:0;width:42px;height:3px;background:#e99a2a;border:0;border-radius:0;}}
 .title-text {{display:block;width:100%;text-align:center;padding:0 7%;box-sizing:border-box;}}
@@ -553,7 +563,8 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 .form-table th {{background:#ffe0c2;color:#451159;font-weight:800;}}
 .form-table th:first-child {{background:#e9d6f9;width:22%;}}
 .form-table td:first-child {{text-align:left;padding-left:5.4%;}}
-.executive .form-table tbody tr td:first-child {{text-align:left!important;padding-left:clamp(14px,2.2vw,36px)!important;}}
+.executive .form-table tbody tr td:first-child {{text-align:left!important;padding-left:clamp(14px,1.5vw,24px)!important;vertical-align:middle;}}
+.executive .form-table thead tr th:first-child {{text-align:left!important;padding-left:clamp(14px,1.5vw,24px)!important;}}
 .form-table tr.total-row td {{background:#ffe3c6;color:#411159;font-weight:850;}}
 .brand-footer {{margin-top:1.2%;height:clamp(35px,4vw,95px);background-image:url('data:image/jpeg;base64,{FOOTER_IMAGE}');background-size:100% 100%;}}
 @media(max-width:850px) {{.brand-header {{height:clamp(58px,7.45vw,82px)}}.branding-image {{margin-right:0;background-size:100% 100%}}.date-pill {{right:.7%;width:12.9%;height:58%;top:28%;padding:0 2px}}.date-content {{gap:3px}}.date-calendar {{width:16px;height:16px}}.date-top {{font-size:9px}}.date-bottom {{font-size:8px;margin-top:2px}}.form-card {{margin:5px 10px 0}}.form-table {{min-width:560px;font-size:12px}} .section-title {{gap:0}}}}
@@ -572,7 +583,8 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 .states-table .group-head th:nth-child(-n+2) {{background:#e7d7f8;}}
 .states-table .year-head th {{background:#fff0de;}}
 .states-table th:nth-child(1),.states-table td:nth-child(1) {{width:8%;}}
-.states-table .state-label {{text-align:left;padding-left:12px;white-space:nowrap;width:26%;}}
+.executive .states-table td.state-label {{text-align:left!important;padding-left:clamp(14px,1.5vw,24px)!important;white-space:nowrap;vertical-align:middle;}}
+.executive .states-table thead tr.group-head th:nth-child(2) {{text-align:left!important;padding-left:clamp(14px,1.5vw,24px)!important;}}
 .rank-bubble {{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:#ffdcaa;color:#4b115b;font-weight:800;min-width:26px;height:26px;}}
 .states-table tr:nth-child(even):not(.state-total) {{background:#fbf9fd;}}
 .states-table .state-total td {{background:#ffe8cb;color:#46105d;font-weight:850;}}
