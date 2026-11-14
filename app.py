@@ -225,45 +225,49 @@ def asof_cutoff(start_year: int, today: date) -> pd.Timestamp:
 
 
 def count_cycle(frame: pd.DataFrame, start_year: int, today: date) -> dict:
-    """Normalize once; reuse for campus, state, and overall counting.
+    """Count application SHEET ROWS, not unique Prospect IDs.
 
-    Dedup rules are identical to previously approved report: latest *qualifying*
-    Prospect ID transaction per cycle, by Transaction Date and PREFERENCE 1.
+    Every non-empty application record with one of the four campuses counts once,
+    even when the same Prospect ID appears in multiple rows.  The full-cycle
+    OVERALL count has NO Transaction Date cutoff.  The AS-ON-DATE count retains
+    the corresponding historical date cutoff for each cycle.
+
+    Lead Stage is not filtered: the source tabs are application sheets and the
+    request is to count the rows present in them.  Records with no date still
+    count in OVERALL, but cannot be assigned to AS-ON-DATE.
     """
     empty_counts = {campus: 0 for campus in CAMPUSES}
-    result = {"forms": empty_counts.copy(), "overall_forms": empty_counts.copy(), "asof": {}, "overall": {}}
+    result = {"forms": empty_counts.copy(), "overall_forms": empty_counts.copy(),
+              "asof": {}, "overall": {}}
     if frame.empty:
         return result
     df = frame.copy()
     for col in REPORT_COLUMNS:
         if col not in df.columns:
             df[col] = ""
-    df["date"] = parse_dates(df["date"])
-    df = df[df["date"].notna()].copy()
-    if df.empty:
-        return result
-    for field in ("id", "campus", "stage", "state"):
+    for field in ("id", "campus", "state"):
         df[field] = df[field].fillna("").astype(str).str.strip()
-    df["id"] = df["id"].replace({"nan":"", "None":""})
-    df["stage"] = df["stage"].str.upper().str.replace(r"\s+", " ", regex=True)
     df["campus"] = df["campus"].str.upper().str.replace(r"\s+", " ", regex=True)
-    eligible = df[df["id"].ne("") & df["stage"].isin(FORM_STAGES)].copy()
+
+    # Blank/unknown-campus records cannot be allocated to a campus in the table.
+    # Do NOT remove duplicate Prospect IDs or filter by Lead Stage.
+    eligible = df[df["campus"].isin(CAMPUS_UPPER)].copy()
     if eligible.empty:
         return result
-    eligible = eligible.sort_values("date", kind="stable")
+    eligible["parsed_date"] = parse_dates(eligible["date"])
     cutoff = asof_cutoff(start_year, today)
-    snapshots = {"overall": eligible, "asof": eligible[eligible["date"] <= cutoff]}
+    snapshots = {"overall": eligible,
+                 "asof": eligible[eligible["parsed_date"].notna() &
+                                  (eligible["parsed_date"] <= cutoff)]}
     for mode, subset in snapshots.items():
         if subset.empty:
             continue
-        dedup = subset.drop_duplicates("id", keep="last")
-        dedup = dedup[dedup["campus"].isin(CAMPUS_UPPER)]
-        if mode in ("asof", "overall"):
-            by_campus = dedup["campus"].value_counts()
-            target = "forms" if mode == "asof" else "overall_forms"
-            result[target] = {c: int(by_campus.get(c.upper(), 0)) for c in CAMPUSES}
-        state_series = dedup["state"].map(normalized_state)
-        result[mode] = {str(k): int(v) for k, v in state_series[state_series.ne("")].value_counts().items()}
+        by_campus = subset["campus"].value_counts()
+        target = "forms" if mode == "asof" else "overall_forms"
+        result[target] = {c: int(by_campus.get(c.upper(), 0)) for c in CAMPUSES}
+        state_series = subset["state"].map(normalized_state)
+        result[mode] = {str(k): int(v) for k, v in
+                        state_series[state_series.ne("")].value_counts().items()}
     return result
 
 
@@ -395,9 +399,10 @@ def render_report(results: dict[str, dict[str, int | None]], today: date,
         rows+=f"<tr><td>{escape(campus)}</td>{cells}</tr>"
     totals=[total_forms(results.get(tab, {})) for tab in headers]
     rows+="<tr class='total-row'><td>Total</td>"+"".join(f"<td>{number(n)}</td>" for n in totals)+"</tr>"
-    # Live Google Sheets: table = equivalent AS-ON-DATE counts for all years;
-    # ticker = current-year AS-ON-DATE plus both prior full-cycle OVERALL totals.
-    # No manually entered / hardcoded historical counts.
+    # Both views count application rows (not unique Prospect IDs).
+    # Table = equivalent AS-ON-DATE counts for all years;
+    # ticker = current-year AS-ON-DATE, past years full SHEET ROW totals.
+    # No hardcoded figures.
     overall_forms = overall_results if overall_results is not None else results
     summary_counts = [total_forms(overall_forms.get(tab, {})) for tab in headers]
     summary_line = (
