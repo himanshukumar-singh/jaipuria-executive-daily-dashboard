@@ -383,8 +383,8 @@ def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
                  if statuses.get(tab) == "ok" else None for tab in asof_tabs]
         cells += [(state_counts.get(tab, {}).get("overall", {}) or {}).get(state, 0)
                   if statuses.get(tab) == "ok" else None for tab in overall_tabs]
-        trs.append("<tr><td class='rank-cell'><span class='rank-bubble'>" + str(pos) +
-                   "</span></td><td class='state-label'>" + escape(state) +
+        trs.append("<tr><td class='rank-cell'>" + str(pos) +
+                   "</td><td class='state-label'>" + escape(state) +
                    "</td>" + "".join(f"<td>{number(v)}</td>" for v in cells) + "</tr>")
     if not trs:
         trs = ["<tr><td colspan='7' style='padding:24px'>No state-wise records available</td></tr>"]
@@ -395,7 +395,7 @@ def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
     for tab in overall_tabs:
         totals.append(sum(state_counts.get(tab, {}).get("overall", {}).get(k, 0) for k in leaders)
                       if statuses.get(tab) == "ok" else None)
-    total_row = ("<tr class='state-total'><td colspan='2'>All States Total</td>" +
+    total_row = ("<tr class='state-total'><td colspan='2'>TOTAL</td>" +
                  "".join(f"<td>{number(v)}</td>" for v in totals) + "</tr>")
     a, b, c = [total_forms(results.get(t, {})) for t in asof_tabs]
     top_name = leaders[0] if leaders else "—"
@@ -463,7 +463,7 @@ def render_report(results: dict[str, dict[str, int | None]], today: date,
     overall_forms = overall_results if overall_results is not None else results
     summary_counts = [total_forms(overall_forms.get(tab, {})) for tab in headers]
     summary_line = (
-        f"<span class='ticker-intro'>Total Forms – Overall:</span> "
+        f"<span class='ticker-intro'>Application Overview:</span> "
         f"<span class='ticker-separator'>│</span>"
         f"<span class='ticker-label'>2027–29:</span> <strong class='ticker-value'>{number(totals[0])}</strong>"
         f"<span class='ticker-separator'>│</span>"
@@ -747,6 +747,40 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 .insight-item strong {{font-size:clamp(11px,.76vw,13px)!important;line-height:1.32!important;letter-spacing:0!important;}}
 .insight-item p {{font-size:clamp(11px,.75vw,13px)!important;line-height:1.45!important;overflow-wrap:normal!important;word-break:normal!important;}}
 @media(prefers-reduced-motion:reduce) {{.brand-header::after {{animation:none!important;}}}}
+
+
+/* CEO APPROVED: SOLID DEEP PLUM HEADER + FREEZE AT HEADER SEPARATOR */
+.section-title,.states-heading,.insights-heading {{
+  background:#773550!important;background-image:none!important;
+  box-shadow:none!important;text-shadow:none!important;
+  color:#FFFFFF!important;
+}}
+/* Header and the thin line below it stay at the top during page scroll.
+   The rest of the report (ticker and tables) continues scrolling normally. */
+.executive .brand-header {{
+  position:sticky!important;
+  top:0!important;
+  z-index:999!important;
+  background-color:#FFFFFF!important;
+  isolation:isolate;
+}}
+/* Number stays visible, without coloured round background or badge. */
+.executive .states-table .rank-cell {{
+  background:transparent!important;
+  border-radius:0!important;
+  text-align:center!important;
+  font-weight:650!important;
+  color:#26313A!important;
+}}
+.executive .states-table .rank-cell span,
+.executive .states-table .rank-bubble {{
+  background:none!important;border-radius:0!important;
+  box-shadow:none!important;color:#26313A!important;
+  min-width:0!important;height:auto!important;
+}}
+/* No motion blur on table or header typography. */
+.section-title,.states-heading,.insights-heading,
+.form-table,.states-table {{filter:none!important;backdrop-filter:none!important;}}
 
 </style>""",unsafe_allow_html=True)
 
