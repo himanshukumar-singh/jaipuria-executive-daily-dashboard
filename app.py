@@ -782,6 +782,30 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 .section-title,.states-heading,.insights-heading,
 .form-table,.states-table {{filter:none!important;backdrop-filter:none!important;}}
 
+
+/* FINAL TWO PRESENTATION CHANGES — ALL STATES CENTER AND APPLICATION OVERVIEW FONT */
+.executive .states-heading {{
+  justify-content:center!important;
+  text-align:center!important;
+  position:relative!important;
+}}
+.executive .states-heading-icon {{
+  position:absolute!important;
+  left:17px!important;
+  top:50%!important;
+  transform:translateY(-50%)!important;
+  margin-right:0!important;
+}}
+.executive .executive-ticker,
+.executive .executive-ticker-track,
+.executive .executive-ticker .ticker-intro,
+.executive .executive-ticker .ticker-label,
+.executive .executive-ticker .ticker-value,
+.executive .executive-ticker .ticker-separator {{
+  color:#6D3E51!important;
+  -webkit-text-fill-color:#6D3E51!important;
+}}
+
 </style>""",unsafe_allow_html=True)
 
 # Keep automatic refresh without needlessly calling Google on every widget rerun.
