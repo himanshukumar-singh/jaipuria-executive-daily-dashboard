@@ -409,7 +409,7 @@ def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
     return f"""
     <div class='state-insights-grid'>
       <section class='states-card'>
-        <div class='states-heading'>All States – Total Forms</div>
+        <div class='states-heading'>STATE-WISE APPLICATION PERFORMANCE | 3-YEAR COMPARISON</div>
         <div class='states-scroll'><table class='states-table'>
           <thead><tr class='group-head'><th rowspan='2'>S. NO.</th><th rowspan='2'>State</th>
             <th colspan='3'>As on Date</th><th colspan='2'>Overall</th></tr>
