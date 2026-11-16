@@ -420,23 +420,23 @@ def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
         <div class='states-footnote'>ORDERED BY 2027–29 AS-ON-DATE FORMS · CORRESPONDENCE STATE · APPLICATION ROWS</div>
       </section>
       <aside class='insights-card'>
-        <div class='insights-heading'><span aria-hidden='true'>✦</span><span class='insights-heading-text'>KEY INSIGHTS</span></div>
+        <div class='insights-heading'><span aria-hidden='true'>✦</span><span class='insights-heading-text'>Key Insights</span></div>
         <div class='insights-inner'>
           <div class='insight-item'><span class='insight-icon'>▤</span><div>
-            <strong>APPLICATIONS AS ON DATE</strong>
-            <p><b>{number(a)}</b> FOR 2027–29 · {number(b)} FOR 2026–28 · {number(c)} FOR 2025–27</p>
+            <strong>Applications as on Date</strong>
+            <p><b>{number(a)}</b> in 2027–29 · {number(b)} in 2026–28 · {number(c)} in 2025–27</p>
           </div></div>
           <div class='insight-item'><span class='insight-icon'>↗</span><div>
-            <strong>LEADING STATE · 2027–29</strong>
-            <p>{escape(top_name)} — <b>{number(top_count)}</b> FORMS</p>
+            <strong>Leading State · 2027–29</strong>
+            <p>{escape(top_name.title())} — <b>{number(top_count)}</b> forms</p>
           </div></div>
           <div class='insight-item'><span class='insight-icon'>★</span><div>
-            <strong>TOP 3 STATES · 2027–29</strong>
-            <p>{escape(top_three_label)} — <b>{number(top_three_count)}</b> FORMS ({percentage(top_three_count,a)} OF CURRENT-YEAR FORMS)</p>
+            <strong>Top 3 States · 2027–29</strong>
+            <p>{escape(top_three_label.title())} — <b>{number(top_three_count)}</b> forms ({percentage(top_three_count,a)} of current-year forms)</p>
           </div></div>
           <div class='insight-item'><span class='insight-icon'>◉</span><div>
-            <strong>STATE COVERAGE · 2027–29</strong>
-            <p><b>{number(all_states_count)}</b> STATE-MAPPED FORMS ({percentage(all_states_count,a)} OF CURRENT-YEAR FORMS)</p>
+            <strong>State Coverage · 2027–29</strong>
+            <p><b>{number(all_states_count)}</b> state-mapped forms ({percentage(all_states_count,a)} of current-year forms)</p>
           </div></div>
         </div>
       </aside>
@@ -471,7 +471,7 @@ def render_report(results: dict[str, dict[str, int | None]], today: date,
         f"<span class='ticker-separator'>│</span>"
         f"<span class='ticker-label'>2025–27:</span> <strong class='ticker-value'>{number(summary_counts[2])}</strong>"
         f"<span class='ticker-separator'>│</span>"
-        f"<span class='ticker-label'>LAST TRANSACTION DATE (2027–29):</span> "
+        f"<span class='ticker-label'>Last Transaction Date (2027–29):</span> "
         f"<strong class='ticker-value'>{escape(latest_transaction)}</strong>"
     )
     # ALL STATES: AS ON DATE comparison remains as-of; full-cycle historical counts remain OVERALL.
@@ -721,6 +721,32 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 .insight-item p {{font-size:clamp(11px,.72vw,12.5px)!important;line-height:1.38!important;letter-spacing:0!important;word-break:normal!important;}}
 .insight-item p b {{font-weight:800!important;}}
 @media(max-width:980px) {{.insights-inner {{padding:5px 12px!important;}}.insight-item {{padding:10px 0!important;}}}}
+
+
+/* CEO FINISH: WHITE TICKER, PROPER CASE, SINGLE MOVING MULTICOLOUR LINE */
+.brand-header::after {{
+  display:block!important;height:3px!important;box-shadow:none!important;
+  background:linear-gradient(90deg,#855268 0%,#B98A9C 17%,#E4AD69 35%,#C6D8D0 52%,#6E9D99 69%,#D1B2AD 86%,#855268 100%)!important;
+  background-size:250% 100%!important;
+  animation:ceoHeaderColourLTR 5s linear infinite!important;
+}}
+.brand-header::before {{display:none!important;}}
+@keyframes ceoHeaderColourLTR {{from {{background-position:100% center;}}to {{background-position:0% center;}}}}
+.executive-ticker {{background:#FFFFFF!important;margin:0!important;padding:0!important;}}
+.executive-ticker-track {{text-transform:none!important;color:#344654!important;font-size:clamp(11px,.75vw,13px)!important;font-weight:600!important;letter-spacing:0!important;gap:5px!important;}}
+.executive-ticker .ticker-intro,.executive-ticker .ticker-label,.executive-ticker .ticker-value,.executive-ticker .ticker-separator {{
+ text-transform:none!important;color:#344654!important;-webkit-text-fill-color:#344654!important;
+ background:none!important;background-image:none!important;animation:none!important;text-shadow:none!important;
+}}
+.executive-ticker .ticker-intro {{font-weight:700!important;}}
+.executive-ticker .ticker-label {{font-weight:650!important;}}
+.executive-ticker .ticker-value {{font-weight:750!important;}}
+.executive-ticker .ticker-separator {{color:#AAA3A0!important;-webkit-text-fill-color:#AAA3A0!important;padding:0 5px!important;}}
+.insights-card,.insights-heading,.insights-inner,.insight-item,.insight-item strong,.insight-item p,.insight-item b {{text-transform:none!important;}}
+.insights-heading .insights-heading-text {{text-transform:none!important;font-weight:750!important;}}
+.insight-item strong {{font-size:clamp(11px,.76vw,13px)!important;line-height:1.32!important;letter-spacing:0!important;}}
+.insight-item p {{font-size:clamp(11px,.75vw,13px)!important;line-height:1.45!important;overflow-wrap:normal!important;word-break:normal!important;}}
+@media(prefers-reduced-motion:reduce) {{.brand-header::after {{animation:none!important;}}}}
 
 </style>""",unsafe_allow_html=True)
 
