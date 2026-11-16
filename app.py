@@ -365,9 +365,16 @@ def total_forms(forms: dict[str, int | None]) -> int | None:
 def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
                       results: dict[str, dict[str, int | None]],
                       statuses: dict[str, str]) -> str:
-    """Retain the approved Top 10 + Insights design; never assume populated tabs."""
+    """Show ALL states recorded across the three cycles, retaining Insights design."""
     current = state_counts.get("2027_29", {}).get("asof", {}) or {}
-    leaders = sorted(current, key=lambda n: (-current[n], n))[:10]
+    # Include states from every year and both AS ON DATE and OVERALL data.
+    # States with zero current-cycle records still appear if present historically.
+    all_state_names = set()
+    for tab in TABS:
+        if statuses.get(tab) == "ok":
+            all_state_names.update((state_counts.get(tab, {}).get("asof", {}) or {}).keys())
+            all_state_names.update((state_counts.get(tab, {}).get("overall", {}) or {}).keys())
+    leaders = sorted(all_state_names, key=lambda n: (-current.get(n, 0), n))
     asof_tabs = ("2027_29", "2026_28", "2025_27")
     overall_tabs = ("2026_28", "2025_27")
     trs = []
@@ -388,21 +395,21 @@ def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
     for tab in overall_tabs:
         totals.append(sum(state_counts.get(tab, {}).get("overall", {}).get(k, 0) for k in leaders)
                       if statuses.get(tab) == "ok" else None)
-    total_row = ("<tr class='state-total'><td colspan='2'>Top 10 Total</td>" +
+    total_row = ("<tr class='state-total'><td colspan='2'>All States Total</td>" +
                  "".join(f"<td>{number(v)}</td>" for v in totals) + "</tr>")
     a, b, c = [total_forms(results.get(t, {})) for t in asof_tabs]
     top_name = leaders[0] if leaders else "—"
     top_count = current.get(top_name) if leaders else None
     top_three = leaders[:3]
     top_three_count = sum(current[n] for n in top_three) if leaders else None
-    top_ten_count = totals[0]
+    all_states_count = totals[0]
     def percentage(num, den):
         return f"{100 * num / den:.1f}%" if num is not None and den and den > 0 else "—"
     top_three_label = ", ".join(top_three) if top_three else "—"
     return f"""
     <div class='state-insights-grid'>
       <section class='states-card'>
-        <div class='states-heading'><span class='states-heading-icon'>▥</span> Top 10 States – Total Forms</div>
+        <div class='states-heading'><span class='states-heading-icon'>▥</span> All States – Total Forms</div>
         <div class='states-scroll'><table class='states-table'>
           <thead><tr class='group-head'><th rowspan='2'>S. NO.</th><th rowspan='2'>State</th>
             <th colspan='3'>As on Date</th><th colspan='2'>Overall</th></tr>
@@ -413,23 +420,23 @@ def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
         <div class='states-footnote'>ORDERED BY 2027–29 AS-ON-DATE FORMS · CORRESPONDENCE STATE · APPLICATION ROWS</div>
       </section>
       <aside class='insights-card'>
-        <div class='insights-heading'><span>✦</span> Key Insights</div>
+        <div class='insights-heading'><span aria-hidden='true'>✦</span><span class='insights-heading-text'>KEY INSIGHTS</span></div>
         <div class='insights-inner'>
           <div class='insight-item'><span class='insight-icon'>▤</span><div>
-            <strong>Total Forms | As on Date</strong>
+            <strong>APPLICATIONS | AS ON DATE</strong>
             <p><b>{number(a)}</b> in 2027–29 vs {number(b)} in 2026–28 and {number(c)} in 2025–27</p>
           </div></div>
           <div class='insight-item'><span class='insight-icon'>↗</span><div>
-            <strong>Top State | 2027–29</strong>
+            <strong>LEADING STATE | 2027–29</strong>
             <p>{escape(top_name)} with <b>{number(top_count)}</b> forms</p>
           </div></div>
           <div class='insight-item'><span class='insight-icon'>★</span><div>
-            <strong>Top 3 States | 2027–29</strong>
+            <strong>TOP THREE STATES | 2027–29</strong>
             <p>{escape(top_three_label)}: <b>{number(top_three_count)}</b> forms ({percentage(top_three_count,a)} of all campus forms)</p>
           </div></div>
           <div class='insight-item'><span class='insight-icon'>◉</span><div>
-            <strong>Top 10 States | 2027–29</strong>
-            <p><b>{number(top_ten_count)}</b> forms ({percentage(top_ten_count,a)} of all campus forms)</p>
+            <strong>STATE-WISE COVERAGE | 2027–29</strong>
+            <p><b>{number(all_states_count)}</b> forms ({percentage(all_states_count,a)} of all campus forms)</p>
           </div></div>
         </div>
       </aside>
@@ -467,7 +474,7 @@ def render_report(results: dict[str, dict[str, int | None]], today: date,
         f"<span class='ticker-label'>LATEST TRANSACTION (2027–29):</span> "
         f"<strong class='ticker-value'>{escape(latest_transaction)}</strong>"
     )
-    # Top 10 States' explicitly labelled AS ON DATE comparison remains as-of.
+    # ALL STATES: AS ON DATE comparison remains as-of; full-cycle historical counts remain OVERALL.
     states_panel = state_report_html(state_counts, asof_results if asof_results is not None else results, statuses)
     display_date=today.strftime("%a, %d %b %Y")
     date_caption=escape(display_date)
@@ -599,6 +606,101 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 .insight-item p {{font-size:clamp(12px,.84vw,15px);font-family:Arial,Helvetica,sans-serif;margin:0;line-height:1.35;color:#29232c;}}
 .insight-item b {{color:#501264;}}
 @media(max-width:980px) {{.state-insights-grid {{grid-template-columns:1fr;gap:15px;}}.states-table {{min-width:650px;}}}}
+
+/* ===== CEO CLEAN CORPORATE THEME | DESIGN ONLY =====
+   Soft ivory + muted maroon + Jaipuria orange. No data transformations. */
+[data-testid="stAppViewContainer"] {{background:#FCFBF9!important;}}
+.executive {{background:#FCFBF9!important;color:#25313B!important;}}
+.source-note {{background:#FFF5EA!important;color:#744C35!important;}}
+/* One understated line under the existing approved hero artwork. */
+.brand-header::after {{
+  background:#A77A72!important; height:2px!important;
+  left:.8%!important;right:.8%!important;bottom:8px!important;
+}}
+.brand-header::before {{display:none!important;animation:none!important;}}
+/* One ink colour for the entire moving ticker; preserve translation. */
+.executive-ticker {{background:#FCFBF9!important;height:clamp(31px,2.3vw,39px)!important;}}
+.executive-ticker-track {{color:#344654!important;font-size:clamp(12px,.84vw,15px)!important;letter-spacing:.03px;}}
+.executive-ticker .ticker-intro,
+.executive-ticker .ticker-label,
+.executive-ticker .ticker-value {{
+  color:#344654!important;
+  background:none!important;background-image:none!important;
+  -webkit-background-clip:initial!important;background-clip:initial!important;
+  -webkit-text-fill-color:#344654!important;
+  animation:none!important;text-shadow:none!important;
+}}
+.executive-ticker .ticker-value {{font-size:1.03em!important;font-weight:800!important;}}
+.executive-ticker .ticker-separator {{color:#B6A7A2!important;font-weight:400!important;}}
+/* Light cards and clear, quieter title strips. */
+.form-card,.states-card,.insights-card {{
+  background:#FFF!important;
+  border:1px solid #D9D1CC!important;
+  box-shadow:0 2px 11px rgba(66,52,48,.055)!important;
+  border-radius:13px!important;
+}}
+.section-title,.states-heading,.insights-heading {{
+  background:#855268!important;
+  background-image:none!important;
+  color:#FFF!important;
+  box-shadow:none!important;
+  font-size:clamp(15px,1.07vw,19px)!important;
+  font-weight:750!important;
+  letter-spacing:.25px!important;
+}}
+.section-title {{height:clamp(37px,2.45vw,44px)!important;}}
+.states-heading,.insights-heading {{min-height:42px!important;padding:7px 17px!important;}}
+.section-title:after,.states-heading:after,.insights-heading:after {{background:#E4AD69!important;width:22px!important;height:2px!important;}}
+.states-heading-icon,.insights-heading>span:first-child {{color:#FFE2BB!important;font-size:1em!important;}}
+.insights-heading-text {{color:#FFF!important;font-size:inherit!important;font-weight:inherit!important;}}
+/* Neutral table headings, subtle total rows, consistent legible ink. */
+.form-table th,.states-table .group-head th,.states-table .group-head th:nth-child(-n+2),
+.states-table .year-head th {{background:#F4EEE9!important;color:#6D3E51!important;}}
+.form-table th:first-child {{background:#F0E6E1!important;}}
+.form-table th,.form-table td,.states-table th,.states-table td {{
+  border-color:#E1DBD7!important;
+  color:#26313A;
+}}
+.form-table tr.total-row td,.states-table .state-total td {{
+  background:#F7EBDF!important;color:#6D3E51!important;font-weight:800!important;
+}}
+.states-table tr:nth-child(even):not(.state-total) {{background:#FAF8F6!important;}}
+.rank-bubble {{background:#F2E3D8!important;color:#754659!important;min-width:24px!important;height:24px!important;}}
+.states-footnote {{color:#7B7772!important;background:#FFFEFD!important;}}
+/* Insight section: consistent heading, airy rows and aligned text. */
+.insights-inner {{padding:5px 20px 8px!important;}}
+.insight-item {{
+  display:grid!important;
+  grid-template-columns:40px minmax(0,1fr)!important;
+  align-items:start!important;
+  gap:13px!important;
+  padding:17px 0!important;
+  border-bottom:1px solid #EEE8E4!important;
+}}
+.insight-item>div {{min-width:0!important;}}
+.insight-icon {{
+  width:36px!important;height:36px!important;
+  font-size:19px!important;border-radius:10px!important;
+  background:#F6EDE9!important;color:#855268!important;
+}}
+.insight-item strong {{
+  color:#6D3E51!important;
+  font-size:clamp(12px,.83vw,14px)!important;
+  letter-spacing:.15px!important;
+  margin:1px 0 5px!important;line-height:1.25!important;
+}}
+.insight-item p {{
+  color:#36424C!important;
+  font-size:clamp(12px,.83vw,14px)!important;
+  line-height:1.48!important;
+  overflow-wrap:anywhere!important;
+}}
+.insight-item b {{color:#77495E!important;}}
+@media(max-width:980px) {{
+  .insights-inner {{padding:4px 15px!important;}}
+  .insight-item {{padding:13px 0!important;}}
+}}
+
 </style>""",unsafe_allow_html=True)
 
 # Keep automatic refresh without needlessly calling Google on every widget rerun.
