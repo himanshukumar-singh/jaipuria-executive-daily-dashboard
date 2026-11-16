@@ -409,7 +409,7 @@ def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
     return f"""
     <div class='state-insights-grid'>
       <section class='states-card'>
-        <div class='states-heading'><span class='states-heading-icon'>▥</span> All States – Total Forms</div>
+        <div class='states-heading'>All States – Total Forms</div>
         <div class='states-scroll'><table class='states-table'>
           <thead><tr class='group-head'><th rowspan='2'>S. NO.</th><th rowspan='2'>State</th>
             <th colspan='3'>As on Date</th><th colspan='2'>Overall</th></tr>
@@ -804,6 +804,42 @@ header[data-testid="stHeader"] {{background:transparent!important}}
 .executive .executive-ticker .ticker-separator {{
   color:#6D3E51!important;
   -webkit-text-fill-color:#6D3E51!important;
+}}
+
+
+/* FINAL DESIGN TWEAK — ICON-FREE CENTER HEADING + FLOWING BRAND LINE */
+.executive .states-heading {{justify-content:center!important;text-align:center!important;}}
+.executive .states-heading-icon {{display:none!important;}}
+/* Exactly one thin, animated line. A seamless ribbon of plum, purple,
+   Jaipuria gold/orange and soft rose flows left-to-right like water. */
+.executive .brand-header::after {{
+  content:""!important;
+  display:block!important;
+  position:absolute!important;
+  left:.8%!important;
+  right:.8%!important;
+  bottom:8px!important;
+  height:3px!important;
+  border-radius:4px!important;
+  opacity:1!important;
+  background-image:linear-gradient(90deg,
+    #773550 0%,#9A6580 8%,#D49BAC 16%,#F8B85F 24%,
+    #FF961B 32%,#F8B85F 40%,#D49BAC 48%,#773550 50%,
+    #9A6580 58%,#D49BAC 66%,#F8B85F 74%,
+    #FF961B 82%,#F8B85F 90%,#D49BAC 98%,#773550 100%)!important;
+  background-size:200% 100%!important;
+  background-repeat:repeat-x!important;
+  animation:jaipuriaWaterFlowLTR 7s linear infinite!important;
+  filter:none!important;
+  box-shadow:none!important;
+}}
+.executive .brand-header::before {{display:none!important;}}
+@keyframes jaipuriaWaterFlowLTR {{
+  from {{background-position:0% center;}}
+  to {{background-position:200% center;}}
+}}
+@media(prefers-reduced-motion:reduce) {{
+  .executive .brand-header::after {{animation:none!important;}}
 }}
 
 </style>""",unsafe_allow_html=True)
