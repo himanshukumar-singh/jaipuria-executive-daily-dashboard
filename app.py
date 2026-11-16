@@ -842,6 +842,37 @@ header[data-testid="stHeader"] {{background:transparent!important}}
   .executive .brand-header::after {{animation:none!important;}}
 }}
 
+
+/* FINAL REQUEST: APPLICATION OVERVIEW ONLY — BLACK, BOLD, CAMPUS-SIZED */
+.executive .executive-ticker {{
+  background:#FFFFFF!important;
+}}
+.executive .executive-ticker-track,
+.executive .executive-ticker .ticker-intro,
+.executive .executive-ticker .ticker-label,
+.executive .executive-ticker .ticker-value,
+.executive .executive-ticker .ticker-separator {{
+  color:#000000!important;
+  -webkit-text-fill-color:#000000!important;
+  background:none!important;
+  background-image:none!important;
+  -webkit-background-clip:initial!important;
+  background-clip:initial!important;
+  text-shadow:none!important;
+  filter:none!important;
+  font-family:Arial,Helvetica,sans-serif!important;
+  font-size:clamp(11px,.76vw,13px)!important;
+  font-weight:700!important;
+  letter-spacing:0!important;
+  text-transform:none!important;
+}}
+.executive .executive-ticker .ticker-intro,
+.executive .executive-ticker .ticker-label,
+.executive .executive-ticker .ticker-value {{
+  animation:none!important;
+}}
+/* The parent ticker-track retains its existing left-to-right movement. */
+
 </style>""",unsafe_allow_html=True)
 
 # Keep automatic refresh without needlessly calling Google on every widget rerun.
