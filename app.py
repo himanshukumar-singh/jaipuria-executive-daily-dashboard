@@ -246,7 +246,8 @@ def latest_current_transaction(frame: pd.DataFrame, today: date) -> str:
 
 STATE_ALIASES = {
     "UTTAR PRADESH": "Uttar Pradesh", "UP": "Uttar Pradesh", "U P": "Uttar Pradesh",
-    "DELHI": "Delhi", "NEW DELHI": "Delhi", "DELHI NCR": "Delhi",
+    "DELHI": "Delhi NCR", "NEW DELHI": "Delhi NCR", "DELHI NCR": "Delhi NCR",
+    "DELHI-NCR": "Delhi NCR", "DELHI / NCR": "Delhi NCR", "DELHI (NCR)": "Delhi NCR",
     "MAHARASHTRA": "Maharashtra", "RAJASTHAN": "Rajasthan",
     "MADHYA PRADESH": "Madhya Pradesh", "MP": "Madhya Pradesh",
     "BIHAR": "Bihar", "HARYANA": "Haryana", "GUJARAT": "Gujarat",
@@ -262,6 +263,9 @@ def normalized_state(value: object) -> str:
     raw = re.sub(r"\s+", " ", str(value or "").strip()).upper().replace(".", "")
     if raw in {"", "NAN", "NONE", "NULL", "NA", "N/A", "OTHER", "SELECT", "SELECT STATE"}:
         return ""
+    # Normalize any state value containing the word Delhi across all cycles.
+    if "DELHI" in raw:
+        return "Delhi NCR"
     return STATE_ALIASES.get(raw, raw.title())
 
 
@@ -316,7 +320,7 @@ def count_cycle(frame: pd.DataFrame, start_year: int, today: date) -> dict:
         result[target] = {c: int(by_campus.get(c.upper(), 0)) for c in CAMPUSES}
         state_series = subset["state"].map(normalized_state)
         result[mode] = {str(k): int(v) for k, v in
-                        state_series[state_series.ne("")].value_counts().items()}
+                        state_series.replace("", "State Not Available").value_counts().items()}
     return result
 
 
@@ -374,7 +378,7 @@ def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
         if statuses.get(tab) == "ok":
             all_state_names.update((state_counts.get(tab, {}).get("asof", {}) or {}).keys())
             all_state_names.update((state_counts.get(tab, {}).get("overall", {}) or {}).keys())
-    leaders = sorted(all_state_names, key=lambda n: (-current.get(n, 0), n))
+    leaders = sorted(all_state_names, key=lambda n: (n == "State Not Available", -current.get(n, 0), n))
     asof_tabs = ("2027_29", "2026_28", "2025_27")
     overall_tabs = ("2026_28", "2025_27")
     trs = []
@@ -398,11 +402,12 @@ def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
     total_row = ("<tr class='state-total'><td colspan='2'>TOTAL</td>" +
                  "".join(f"<td>{number(v)}</td>" for v in totals) + "</tr>")
     a, b, c = [total_forms(results.get(t, {})) for t in asof_tabs]
-    top_name = leaders[0] if leaders else "—"
-    top_count = current.get(top_name) if leaders else None
-    top_three = leaders[:3]
-    top_three_count = sum(current[n] for n in top_three) if leaders else None
-    all_states_count = totals[0]
+    ranked_states = [n for n in leaders if n != "State Not Available" and current.get(n, 0) > 0]
+    top_name = ranked_states[0] if ranked_states else "—"
+    top_count = current.get(top_name) if ranked_states else None
+    top_three = ranked_states[:3]
+    top_three_count = sum(current.get(n, 0) for n in top_three) if ranked_states else None
+    all_states_count = totals[0] - current.get("State Not Available", 0) if totals[0] is not None else None
     def percentage(num, den):
         return f"{100 * num / den:.1f}%" if num is not None and den and den > 0 else "—"
     top_three_label = ", ".join(top_three) if top_three else "—"
@@ -428,11 +433,11 @@ def state_report_html(state_counts: dict[str, dict[str, dict[str, int]]],
           </div></div>
           <div class='insight-item'><span class='insight-icon'>↗</span><div>
             <strong>Leading State · 2027–29</strong>
-            <p>{escape(top_name.title())} — <b>{number(top_count)}</b> forms</p>
+            <p>{escape(top_name)} — <b>{number(top_count)}</b> forms</p>
           </div></div>
           <div class='insight-item'><span class='insight-icon'>★</span><div>
             <strong>Top 3 States · 2027–29</strong>
-            <p>{escape(top_three_label.title())} — <b>{number(top_three_count)}</b> forms ({percentage(top_three_count,a)} of current-year forms)</p>
+            <p>{escape(top_three_label)} — <b>{number(top_three_count)}</b> forms ({percentage(top_three_count,a)} of current-year forms)</p>
           </div></div>
           <div class='insight-item'><span class='insight-icon'>◉</span><div>
             <strong>State Coverage · 2027–29</strong>
